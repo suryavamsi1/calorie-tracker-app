@@ -21,11 +21,11 @@ const authLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: 600,
+  limit: 1200,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests. Please slow down." },
-  skip: () => process.env.NODE_ENV === "test",
+  skip: (req) => process.env.NODE_ENV === "test" || req.path.startsWith("/events"),
 });
 
 export function createApp() {
