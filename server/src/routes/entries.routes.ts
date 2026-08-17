@@ -27,6 +27,16 @@ interface FoodRow {
   serving_size: number;
   serving_unit: string;
   calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
+// Macros are only known for foods with a stored nutrition profile (linked
+// catalog/custom Food rows). Quick-add entries (customFoodName/
+// customCalories, no food_id) have no macro data, so they report null.
+function roundMacro(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 function toPublicEntry(row: EntryRow, food?: FoodRow) {
@@ -40,6 +50,9 @@ function toPublicEntry(row: EntryRow, food?: FoodRow) {
     servingUnit: food?.serving_unit ?? "serving",
     quantity: row.quantity,
     calories: Math.round(caloriesPerServing * row.quantity),
+    proteinG: food ? roundMacro(food.protein_g * row.quantity) : null,
+    carbsG: food ? roundMacro(food.carbs_g * row.quantity) : null,
+    fatG: food ? roundMacro(food.fat_g * row.quantity) : null,
     mealType: row.meal_type,
     entryDate: row.entry_date,
     createdAt: row.created_at,

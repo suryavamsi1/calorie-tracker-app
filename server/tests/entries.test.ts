@@ -29,11 +29,32 @@ describe("entries", () => {
 
     expect(created.status).toBe(201);
     expect(created.body.entry.foodId).toBe(chickenFoodId);
+    // Chicken breast: 31g protein per 100g serving x2 quantity = 62g
+    expect(created.body.entry.proteinG).toBe(62);
 
     const list = await request(app)
       .get("/entries?date=2026-02-01")
       .set("Authorization", `Bearer ${token}`);
     expect(list.body.entries).toHaveLength(1);
+    expect(list.body.entries[0].proteinG).toBe(62);
+  });
+
+  it("reports null macros for a quick-add (custom) entry", async () => {
+    const res = await request(app)
+      .post("/entries")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        date: "2026-02-15",
+        mealType: "snacks",
+        quantity: 1,
+        customFoodName: "Mystery snack",
+        customCalories: 90,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.entry.proteinG).toBeNull();
+    expect(res.body.entry.carbsG).toBeNull();
+    expect(res.body.entry.fatG).toBeNull();
   });
 
   it("creates a custom (quick-add) entry", async () => {

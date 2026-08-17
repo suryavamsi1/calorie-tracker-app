@@ -6,6 +6,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
+import { MacroLine } from '@/components/MacroLine';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { TextField } from '@/components/TextField';
 import { ThemedText } from '@/components/themed-text';
@@ -110,6 +111,7 @@ function FoodResultCard({
               {food.brand ? `${food.brand} · ` : ''}
               {food.calories} cal · {food.servingSize} {food.servingUnit}
             </ThemedText>
+            <MacroLine proteinG={food.proteinG} carbsG={food.carbsG} fatG={food.fatG} />
           </View>
           <Pressable onPress={onToggleFavorite} hitSlop={8}>
             <ThemedText style={styles.favoriteStar} themeColor={food.isFavorite ? 'accent' : 'textTertiary'}>
@@ -230,6 +232,7 @@ function SearchTab({ mealType, date, entryId }: { mealType: MealType; date: stri
         <ThemedText type="caption" themeColor="textSecondary">
           {selectedFood.calories} cal per {selectedFood.servingSize} {selectedFood.servingUnit}
         </ThemedText>
+        <MacroLine proteinG={selectedFood.proteinG} carbsG={selectedFood.carbsG} fatG={selectedFood.fatG} />
         <TextField
           label="Quantity (servings)"
           keyboardType="decimal-pad"
@@ -366,6 +369,9 @@ function CustomFoodTab({ mealType, date, entryId }: { mealType: MealType; date: 
   const [servingSize, setServingSize] = useState('1');
   const [servingUnit, setServingUnit] = useState('serving');
   const [calories, setCalories] = useState('');
+  const [protein, setProtein] = useState('');
+  const [carbs, setCarbs] = useState('');
+  const [fat, setFat] = useState('');
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -377,6 +383,9 @@ function CustomFoodTab({ mealType, date, entryId }: { mealType: MealType; date: 
         servingSize: Number(servingSize) || 1,
         servingUnit: servingUnit.trim() || 'serving',
         calories: Number(calories),
+        proteinG: Number(protein) || 0,
+        carbsG: Number(carbs) || 0,
+        fatG: Number(fat) || 0,
       });
       if (entryId) {
         await api.put(`/entries/${entryId}`, { foodId: food.id, mealType, entryDate: date });
@@ -401,6 +410,17 @@ function CustomFoodTab({ mealType, date, entryId }: { mealType: MealType; date: 
       <TextField label="Serving size" keyboardType="decimal-pad" value={servingSize} onChangeText={setServingSize} />
       <TextField label="Serving unit" value={servingUnit} onChangeText={setServingUnit} placeholder="cup" />
       <TextField label="Calories per serving" keyboardType="number-pad" value={calories} onChangeText={setCalories} />
+      <View style={styles.macroInputRow}>
+        <View style={styles.macroInput}>
+          <TextField label="Protein (g)" keyboardType="decimal-pad" value={protein} onChangeText={setProtein} placeholder="0" />
+        </View>
+        <View style={styles.macroInput}>
+          <TextField label="Carbs (g)" keyboardType="decimal-pad" value={carbs} onChangeText={setCarbs} placeholder="0" />
+        </View>
+        <View style={styles.macroInput}>
+          <TextField label="Fat (g)" keyboardType="decimal-pad" value={fat} onChangeText={setFat} placeholder="0" />
+        </View>
+      </View>
       <Button title={entryId ? 'Save changes' : 'Save and add to meal'} onPress={handleSave} loading={saving} />
     </Card>
   );
@@ -432,6 +452,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.three,
     marginTop: Spacing.one,
+  },
+  macroInputRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  macroInput: {
+    flex: 1,
   },
   resultsList: {
     gap: Spacing.two,

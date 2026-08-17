@@ -31,6 +31,9 @@ export function initDb() {
       goal_type TEXT,
       target_weight_kg REAL,
       daily_calorie_goal INTEGER,
+      daily_protein_goal REAL,
+      daily_carbs_goal REAL,
+      daily_fat_goal REAL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -41,6 +44,9 @@ export function initDb() {
       serving_size REAL NOT NULL,
       serving_unit TEXT NOT NULL,
       calories INTEGER NOT NULL,
+      protein_g REAL NOT NULL DEFAULT 0,
+      carbs_g REAL NOT NULL DEFAULT 0,
+      fat_g REAL NOT NULL DEFAULT 0,
       source TEXT NOT NULL DEFAULT 'curated',
       created_by_user_id TEXT REFERENCES users(id) ON DELETE CASCADE
     );
@@ -79,4 +85,25 @@ export function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_events_name ON events(name);
   `);
+
+  migrateAddMacroColumns();
+}
+
+// Lightweight migration for databases created before macro tracking was added:
+// CREATE TABLE IF NOT EXISTS is a no-op on existing tables, so pre-existing
+// `foods`/`users` tables need their new columns added explicitly.
+function migrateAddMacroColumns() {
+  addColumnIfMissing("foods", "protein_g", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing("foods", "carbs_g", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing("foods", "fat_g", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing("users", "daily_protein_goal", "REAL");
+  addColumnIfMissing("users", "daily_carbs_goal", "REAL");
+  addColumnIfMissing("users", "daily_fat_goal", "REAL");
+}
+
+function addColumnIfMissing(table: string, column: string, definition: string) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!columns.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }

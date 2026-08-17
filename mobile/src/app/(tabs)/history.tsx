@@ -5,6 +5,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
+import { MacroLine } from '@/components/MacroLine';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProgressBar } from '@/components/ProgressBar';
 import { SkeletonCard } from '@/components/Skeleton';
@@ -147,6 +148,12 @@ function HistoryDayCard({
                   </View>
                 </>
               ) : null}
+              <MacroLine
+                proteinG={day.totalProteinG}
+                carbsG={day.totalCarbsG}
+                fatG={day.totalFatG}
+                size="small"
+              />
             </View>
           </View>
         </Card>

@@ -20,6 +20,9 @@ interface UserRow {
   goal_type: GoalType | null;
   target_weight_kg: number | null;
   daily_calorie_goal: number | null;
+  daily_protein_goal: number | null;
+  daily_carbs_goal: number | null;
+  daily_fat_goal: number | null;
   created_at: string;
 }
 
@@ -36,6 +39,9 @@ function toPublicUser(row: UserRow) {
     goalType: row.goal_type,
     targetWeightKg: row.target_weight_kg,
     dailyCalorieGoal: row.daily_calorie_goal,
+    dailyProteinGoal: row.daily_protein_goal,
+    dailyCarbsGoal: row.daily_carbs_goal,
+    dailyFatGoal: row.daily_fat_goal,
     createdAt: row.created_at,
   };
 }
@@ -107,6 +113,9 @@ router.put("/", requireAuth, (req: AuthedRequest, res) => {
 
 const updateGoalSchema = z.object({
   dailyCalorieGoal: z.number().int().min(800).max(10000),
+  dailyProteinGoal: z.number().min(0).max(1000).nullable().optional(),
+  dailyCarbsGoal: z.number().min(0).max(1000).nullable().optional(),
+  dailyFatGoal: z.number().min(0).max(1000).nullable().optional(),
 });
 
 router.put("/goal", requireAuth, (req: AuthedRequest, res) => {
@@ -115,8 +124,19 @@ router.put("/goal", requireAuth, (req: AuthedRequest, res) => {
     return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
   }
 
-  db.prepare("UPDATE users SET daily_calorie_goal = ? WHERE id = ?").run(
-    parsed.data.dailyCalorieGoal,
+  const existing = db.prepare("SELECT * FROM users WHERE id = ?").get(req.userId) as UserRow | undefined;
+  if (!existing) return res.status(404).json({ error: "User not found" });
+
+  const { dailyCalorieGoal, dailyProteinGoal, dailyCarbsGoal, dailyFatGoal } = parsed.data;
+
+  db.prepare(
+    `UPDATE users SET daily_calorie_goal = ?, daily_protein_goal = ?, daily_carbs_goal = ?, daily_fat_goal = ?
+     WHERE id = ?`
+  ).run(
+    dailyCalorieGoal,
+    dailyProteinGoal !== undefined ? dailyProteinGoal : existing.daily_protein_goal,
+    dailyCarbsGoal !== undefined ? dailyCarbsGoal : existing.daily_carbs_goal,
+    dailyFatGoal !== undefined ? dailyFatGoal : existing.daily_fat_goal,
     req.userId
   );
 

@@ -13,6 +13,9 @@ interface FoodRow {
   serving_size: number;
   serving_unit: string;
   calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
   source: string;
   created_by_user_id: string | null;
 }
@@ -25,6 +28,9 @@ function toPublicFood(row: FoodRow, favoriteIds?: Set<string>) {
     servingSize: row.serving_size,
     servingUnit: row.serving_unit,
     calories: row.calories,
+    proteinG: row.protein_g,
+    carbsG: row.carbs_g,
+    fatG: row.fat_g,
     source: row.source,
     isFavorite: favoriteIds?.has(row.id) ?? false,
   };
@@ -134,6 +140,9 @@ const customFoodSchema = z.object({
   servingSize: z.number().positive().default(1),
   servingUnit: z.string().min(1).default("serving"),
   calories: z.number().int().min(0),
+  proteinG: z.number().min(0).default(0),
+  carbsG: z.number().min(0).default(0),
+  fatG: z.number().min(0).default(0),
 });
 // POST /foods/custom
 router.post("/custom", requireAuth, (req: AuthedRequest, res) => {
@@ -141,13 +150,13 @@ router.post("/custom", requireAuth, (req: AuthedRequest, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
   }
-  const { name, brand, servingSize, servingUnit, calories } = parsed.data;
+  const { name, brand, servingSize, servingUnit, calories, proteinG, carbsG, fatG } = parsed.data;
 
   const id = generateId();
   db.prepare(
-    `INSERT INTO foods (id, name, brand, serving_size, serving_unit, calories, source, created_by_user_id)
-     VALUES (?, ?, ?, ?, ?, ?, 'custom', ?)`
-  ).run(id, name, brand ?? null, servingSize, servingUnit, calories, req.userId);
+    `INSERT INTO foods (id, name, brand, serving_size, serving_unit, calories, protein_g, carbs_g, fat_g, source, created_by_user_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'custom', ?)`
+  ).run(id, name, brand ?? null, servingSize, servingUnit, calories, proteinG, carbsG, fatG, req.userId);
 
   const row = db.prepare("SELECT * FROM foods WHERE id = ?").get(id) as FoodRow;
   res.status(201).json({ food: toPublicFood(row) });

@@ -9,6 +9,7 @@ import { EditEntryModal, type EntryUpdates } from '@/components/EditEntryModal';
 import { EmptyState } from '@/components/EmptyState';
 import { EntryRow } from '@/components/EntryRow';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { ProgressBar } from '@/components/ProgressBar';
 import { ProgressRing } from '@/components/ProgressRing';
 import { SkeletonCard } from '@/components/Skeleton';
 import { SwipeableRow } from '@/components/SwipeableRow';
@@ -106,6 +107,10 @@ export default function DashboardScreen() {
   const progress = goal ? Math.min(consumed / goal, 1) : 0;
   const isOverGoal = remaining !== null && remaining < 0;
 
+  const totalProteinG = entries.reduce((sum, e) => sum + (e.proteinG ?? 0), 0);
+  const totalCarbsG = entries.reduce((sum, e) => sum + (e.carbsG ?? 0), 0);
+  const totalFatG = entries.reduce((sum, e) => sum + (e.fatG ?? 0), 0);
+
   const entriesByMeal: Record<MealType, MealEntry[]> = useMemo(() => {
     const grouped: Record<MealType, MealEntry[]> = {
       breakfast: [],
@@ -189,6 +194,21 @@ export default function DashboardScreen() {
           </Animated.View>
         )}
 
+        {!loading ? (
+          <Animated.View entering={FadeInDown.duration(400).delay(60)}>
+            <Card>
+              <ThemedText type="overline" themeColor="textSecondary">
+                Macros today
+              </ThemedText>
+              <View style={styles.macroRow}>
+                <MacroStat label="Protein" value={totalProteinG} goal={user?.dailyProteinGoal ?? null} color={theme.primary} />
+                <MacroStat label="Carbs" value={totalCarbsG} goal={user?.dailyCarbsGoal ?? null} color={theme.accent} />
+                <MacroStat label="Fat" value={totalFatG} goal={user?.dailyFatGoal ?? null} color={theme.warning} />
+              </View>
+            </Card>
+          </Animated.View>
+        ) : null}
+
         {MEAL_TYPES.map((mealType, index) => {
           const mealEntries = entriesByMeal[mealType];
           const mealTotal = mealEntries.reduce((sum, e) => sum + e.calories, 0);
@@ -253,6 +273,37 @@ export default function DashboardScreen() {
   );
 }
 
+function MacroStat({
+  label,
+  value,
+  goal,
+  color,
+}: {
+  label: string;
+  value: number;
+  goal: number | null;
+  color: string;
+}) {
+  const rounded = Math.round(value * 10) / 10;
+  const display = Number.isInteger(rounded) ? rounded : rounded.toFixed(1);
+  const progress = goal ? Math.min(value / goal, 1) : null;
+
+  return (
+    <View style={styles.macroStat}>
+      <ThemedText type="h3">
+        {display}
+        {goal ? <ThemedText themeColor="textSecondary">{` / ${goal}`}</ThemedText> : null}g
+      </ThemedText>
+      <ThemedText type="caption" themeColor="textSecondary">
+        {label}
+      </ThemedText>
+      {progress !== null ? (
+        <ProgressBar progress={progress} color={color} height={5} style={styles.macroStatBar} />
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: {
@@ -287,6 +338,20 @@ const styles = StyleSheet.create({
   heroDivider: {
     width: StyleSheet.hairlineWidth,
     height: 32,
+  },
+  macroRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: Spacing.two,
+  },
+  macroStat: {
+    alignItems: 'center',
+    gap: 2,
+    minWidth: 80,
+  },
+  macroStatBar: {
+    marginTop: Spacing.one,
+    width: 56,
   },
   motivationPill: {
     borderRadius: Radius.full,

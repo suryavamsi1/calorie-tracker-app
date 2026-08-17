@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { MacroLine } from '@/components/MacroLine';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -20,6 +21,7 @@ export function EntryRow({ entry, onPress }: { entry: MealEntry; onPress: () => 
         <ThemedText type="small" themeColor="textSecondary">
           {entry.quantity}x {entry.servingUnit}
         </ThemedText>
+        <MacroLine proteinG={entry.proteinG} carbsG={entry.carbsG} fatG={entry.fatG} size="small" />
       </View>
       <ThemedText type="smallBold">{entry.calories} cal</ThemedText>
     </Pressable>

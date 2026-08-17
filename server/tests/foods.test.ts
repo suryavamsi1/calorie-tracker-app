@@ -21,16 +21,43 @@ describe("foods", () => {
     expect(res.status).toBe(200);
     expect(res.body.foods.length).toBeGreaterThan(0);
     expect(res.body.foods[0]).toHaveProperty("isFavorite", false);
+    expect(res.body.foods[0]).toHaveProperty("proteinG");
+    expect(res.body.foods[0]).toHaveProperty("carbsG");
+    expect(res.body.foods[0]).toHaveProperty("fatG");
+    expect(res.body.foods[0].proteinG).toBeGreaterThan(0);
   });
 
-  it("creates a custom food", async () => {
+  it("creates a custom food with macros", async () => {
     const res = await request(app)
       .post("/foods/custom")
       .set("Authorization", `Bearer ${token}`)
-      .send({ name: "Protein shake", servingSize: 1, servingUnit: "scoop", calories: 120 });
+      .send({
+        name: "Protein shake",
+        servingSize: 1,
+        servingUnit: "scoop",
+        calories: 120,
+        proteinG: 24,
+        carbsG: 3,
+        fatG: 1,
+      });
 
     expect(res.status).toBe(201);
     expect(res.body.food.name).toBe("Protein shake");
+    expect(res.body.food.proteinG).toBe(24);
+    expect(res.body.food.carbsG).toBe(3);
+    expect(res.body.food.fatG).toBe(1);
+  });
+
+  it("defaults custom food macros to 0 when omitted", async () => {
+    const res = await request(app)
+      .post("/foods/custom")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Mystery snack", calories: 50 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.food.proteinG).toBe(0);
+    expect(res.body.food.carbsG).toBe(0);
+    expect(res.body.food.fatG).toBe(0);
   });
 
   it("stars and unstars a food as a favorite", async () => {

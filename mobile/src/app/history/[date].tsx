@@ -30,6 +30,9 @@ function toMealEntry(entry: HistoryDayDetail['entries'][number], date: string): 
     servingUnit: entry.servingUnit,
     quantity: entry.quantity,
     calories: entry.calories,
+    proteinG: entry.proteinG,
+    carbsG: entry.carbsG,
+    fatG: entry.fatG,
     mealType: entry.mealType,
     entryDate: date,
     createdAt: '',
@@ -139,6 +142,12 @@ export default function HistoryDayScreen() {
               </View>
             </>
           ) : null}
+
+          <View style={[styles.macroSummaryRow, { borderTopColor: theme.border }]}>
+            <MacroStat label="Protein" value={detail.totalProteinG} />
+            <MacroStat label="Carbs" value={detail.totalCarbsG} />
+            <MacroStat label="Fat" value={detail.totalFatG} />
+          </View>
         </Card>
       </Animated.View>
 
@@ -186,6 +195,17 @@ export default function HistoryDayScreen() {
   );
 }
 
+function MacroStat({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.macroStat}>
+      <ThemedText type="bodyBold">{Number.isInteger(value) ? value : value.toFixed(1)}g</ThemedText>
+      <ThemedText type="caption" themeColor="textSecondary">
+        {label}
+      </ThemedText>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
@@ -193,6 +213,17 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     marginVertical: Spacing.one,
+  },
+  macroSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: Spacing.two,
+    paddingTop: Spacing.two,
+  },
+  macroStat: {
+    alignItems: 'center',
+    gap: 2,
   },
   mealTitleRow: {
     flexDirection: 'row',

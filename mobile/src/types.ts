@@ -15,6 +15,9 @@ export interface User {
   goalType: GoalType | null;
   targetWeightKg: number | null;
   dailyCalorieGoal: number | null;
+  dailyProteinGoal: number | null;
+  dailyCarbsGoal: number | null;
+  dailyFatGoal: number | null;
   createdAt: string;
 }
 
@@ -25,6 +28,9 @@ export interface Food {
   servingSize: number;
   servingUnit: string;
   calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
   source: string;
   isFavorite: boolean;
 }
@@ -37,6 +43,9 @@ export interface MealEntry {
   servingUnit: string;
   quantity: number;
   calories: number;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
   mealType: MealType;
   entryDate: string;
   createdAt: string;
@@ -45,6 +54,9 @@ export interface MealEntry {
 export interface HistoryDay {
   date: string;
   totalCalories: number;
+  totalProteinG: number;
+  totalCarbsG: number;
+  totalFatG: number;
   calorieGoal: number | null;
   remainingCalories: number | null;
   overGoal: boolean | null;
@@ -53,6 +65,9 @@ export interface HistoryDay {
 export interface HistoryDayDetail {
   date: string;
   totalCalories: number;
+  totalProteinG: number;
+  totalCarbsG: number;
+  totalFatG: number;
   calorieGoal: number | null;
   remainingCalories: number | null;
   entries: Array<{
@@ -64,5 +79,8 @@ export interface HistoryDayDetail {
     servingSize: number;
     servingUnit: string;
     calories: number;
+    proteinG: number | null;
+    carbsG: number | null;
+    fatG: number | null;
   }>;
 }

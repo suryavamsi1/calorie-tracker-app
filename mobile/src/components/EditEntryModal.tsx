@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 
 import { Button } from '@/components/Button';
+import { MacroLine } from '@/components/MacroLine';
 import { TextField } from '@/components/TextField';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -101,6 +102,7 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood
                 <ThemedText themeColor="textSecondary" type="caption">
                   {entry.servingSize} {entry.servingUnit} per serving
                 </ThemedText>
+                <MacroLine proteinG={entry.proteinG} carbsG={entry.carbsG} fatG={entry.fatG} />
               </>
             )}
 

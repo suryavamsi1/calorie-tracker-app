@@ -55,19 +55,23 @@ Base routes exposed by `server/` (see `server/src/routes/`). All routes except
 - `POST /signup`, `POST /login`, `POST /logout`
 
 ### Profile & account — `me.routes.ts`
-- `GET /me`, `PUT /me`, `PUT /me/goal`
+- `GET /me`, `PUT /me`, `PUT /me/goal` — goal payload accepts `dailyCalorieGoal` (required)
+  plus optional `dailyProteinGoal`/`dailyCarbsGoal`/`dailyFatGoal` (grams, nullable)
 - `PUT /me/password` — change password (requires current password)
 - `DELETE /me` — permanently delete the account and all associated data
 
 ### Foods — `foods.routes.ts`
-- `GET /foods?query=` — search the curated + user's custom foods (includes `isFavorite`)
+- `GET /foods?query=` — search the curated + user's custom foods (includes `isFavorite`,
+  `proteinG`, `carbsG`, `fatG`)
 - `GET /foods/recent?limit=` — most recently logged foods, deduped
 - `GET /foods/favorites` — the user's starred foods
 - `POST /foods/:id/favorite`, `DELETE /foods/:id/favorite` — star/unstar a food
-- `POST /foods/custom` — create a reusable custom food
+- `POST /foods/custom` — create a reusable custom food; accepts `proteinG`/`carbsG`/`fatG`
+  (grams per serving, all optional, default `0`)
 
 ### Entries — `entries.routes.ts`
-- `GET /entries?date=YYYY-MM-DD`
+- `GET /entries?date=YYYY-MM-DD` — each entry includes `proteinG`/`carbsG`/`fatG` (scaled by
+  quantity), or `null` when the entry isn't linked to a food with known macros (quick-add)
 - `POST /entries` — log a food (by `foodId`, or `customFoodName`/`customCalories`)
 - `PUT /entries/:id` — full edit support: `mealType`, `quantity`, `entryDate`, and
   correcting the food itself via `foodId` (switch to a catalog food) or
@@ -75,7 +79,9 @@ Base routes exposed by `server/` (see `server/src/routes/`). All routes except
 - `DELETE /entries/:id`
 
 ### History — `history.routes.ts`
-- `GET /history`, `GET /history/:date`
+- `GET /history` — per-day totals include `totalProteinG`/`totalCarbsG`/`totalFatG`
+- `GET /history/:date` — day detail; each entry and the day total include
+  `proteinG`/`carbsG`/`fatG` (`null` per-entry when macros are unknown)
 
 ### Analytics — `events.routes.ts`
 - `POST /events` — lightweight fire-and-forget product analytics (`{ name, properties }`),
@@ -92,6 +98,9 @@ Base routes exposed by `server/` (see `server/src/routes/`). All routes except
   breakdown (breakfast, lunch, dinner, snacks)
 - Food search against a curated starter database, recent foods, favorites (star/unstar),
   quick-add calories, and custom food creation
+- Macro tracking: protein/carbs/fat are shown for every food (search, recent, favorites,
+  logged entries, history) and summed into daily totals on the dashboard and history
+  detail screens; per-user macro goals are optional alongside the required calorie goal
 - Full entry editing — fix quantity, meal, date, or the logged food/calories itself,
   swap to a different catalog food, or delete (swipe or tap)
 - History of past days with per-day totals, progress bars, day-over-day trend, and a
