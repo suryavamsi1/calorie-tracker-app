@@ -13,6 +13,7 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { calculateCalorieGoal } from '@/lib/calorieGoal';
 import type { ActivityLevel, GoalType, Sex, User } from '@/types';
 
@@ -132,6 +133,7 @@ export default function OnboardingScreen() {
         dailyCalorieGoal: finalGoal,
       });
       setUser(withGoal ?? updated);
+      track('onboarding_completed', { goalType, isEdited });
       router.replace('/(tabs)');
     } catch {
       setError('Unable to save your profile. Please try again.');

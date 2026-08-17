@@ -5,6 +5,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProgressBar } from '@/components/ProgressBar';
 import { SkeletonCard } from '@/components/Skeleton';
 import { ThemedText } from '@/components/themed-text';
@@ -12,17 +13,27 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
+import { getCache, setCache } from '@/lib/cache';
 import { formatDisplayDate } from '@/lib/date';
 import type { HistoryDay } from '@/types';
 export default function HistoryScreen() {
   const [days, setDays] = useState<HistoryDay[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const { days: fetched } = await api.get<{ days: HistoryDay[] }>('/history');
       setDays(fetched);
+      setIsOffline(false);
+      setCache('history', fetched);
+    } catch {
+      const cached = await getCache<HistoryDay[]>('history');
+      if (cached) {
+        setDays(cached);
+        setIsOffline(true);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -40,6 +51,12 @@ export default function HistoryScreen() {
       <ThemedText type="h1" style={styles.heading}>
         History
       </ThemedText>
+
+      {isOffline ? (
+        <View style={styles.offlineBannerWrap}>
+          <OfflineBanner />
+        </View>
+      ) : null}
 
       {loading ? (
         <View style={styles.list}>
@@ -143,6 +160,10 @@ const styles = StyleSheet.create({
   heading: {
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.four,
+  },
+  offlineBannerWrap: {
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.two,
   },
   list: {
     padding: Spacing.four,

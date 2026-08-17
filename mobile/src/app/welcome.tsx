@@ -15,7 +15,7 @@ export default function WelcomeScreen() {
           🍽️
         </ThemedText>
         <ThemedText type="title" style={styles.title}>
-          Calorie Tracker
+          BiteLog
         </ThemedText>
         <ThemedText type="subtitle" themeColor="textSecondary" style={styles.subtitle}>
           Log meals in seconds and see exactly how many calories you have left today.

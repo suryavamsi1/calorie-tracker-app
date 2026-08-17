@@ -1,4 +1,5 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "../db";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
@@ -9,6 +10,7 @@ const router = Router();
 interface UserRow {
   id: string;
   email: string;
+  password_hash: string;
   name: string | null;
   age: number | null;
   sex: Sex | null;
@@ -140,5 +142,41 @@ function mapUpdatesToColumns(data: z.infer<typeof updateProfileSchema>) {
   }
   return columns;
 }
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8),
+});
+
+// PUT /me/password - change password (requires the current password)
+router.put("/password", requireAuth, (req: AuthedRequest, res) => {
+  const parsed = changePasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+  }
+
+  const existing = db.prepare("SELECT * FROM users WHERE id = ?").get(req.userId) as UserRow | undefined;
+  if (!existing) return res.status(404).json({ error: "User not found" });
+
+  const { currentPassword, newPassword } = parsed.data;
+  if (!bcrypt.compareSync(currentPassword, existing.password_hash)) {
+    return res.status(401).json({ error: "Current password is incorrect" });
+  }
+
+  const newHash = bcrypt.hashSync(newPassword, 10);
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(newHash, req.userId);
+
+  res.json({ success: true });
+});
+
+// DELETE /me - permanently delete the account and all associated data
+// (meal entries, custom foods, favorites cascade via ON DELETE CASCADE).
+router.delete("/", requireAuth, (req: AuthedRequest, res) => {
+  const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(req.userId);
+  if (!existing) return res.status(404).json({ error: "User not found" });
+
+  db.prepare("DELETE FROM users WHERE id = ?").run(req.userId);
+  res.status(204).send();
+});
 
 export default router;

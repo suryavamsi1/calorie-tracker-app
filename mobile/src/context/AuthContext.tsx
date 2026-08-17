@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { api } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { clearToken, getToken, setToken } from '@/lib/tokenStorage';
 import type { User } from '@/types';
 
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await setToken(token);
     const { user: fullUser } = await api.get<{ user: User }>('/me');
     setUserState(fullUser ?? newUser);
+    track('signup_completed');
   }, []);
 
   const logIn = useCallback(async (email: string, password: string) => {

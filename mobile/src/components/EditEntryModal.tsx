@@ -10,20 +10,39 @@ import { Radius, Shadow, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { MealEntry } from '@/types';
 
+export interface EntryUpdates {
+  quantity: number;
+  customFoodName?: string;
+  customCalories?: number;
+}
+
 export interface EditEntryModalProps {
   entry: MealEntry | null;
   onClose: () => void;
-  onSave: (quantity: number) => Promise<void> | void;
+  onSave: (updates: EntryUpdates) => Promise<void> | void;
   onDelete: () => Promise<void> | void;
+  /** Only offered for entries linked to a catalog food (wrong food logged). */
+  onReplaceFood?: () => void;
 }
 
-export function EditEntryModal({ entry, onClose, onSave, onDelete }: EditEntryModalProps) {
+export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood }: EditEntryModalProps) {
   const theme = useTheme();
   const [quantity, setQuantity] = useState('1');
+  const [customName, setCustomName] = useState('');
+  const [customCalories, setCustomCalories] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const isCustom = entry ? !entry.foodId : false;
+
   useEffect(() => {
-    if (entry) setQuantity(String(entry.quantity));
+    if (!entry) return;
+    setQuantity(String(entry.quantity));
+    if (!entry.foodId) {
+      setCustomName(entry.foodName);
+      // calories on the entry are already multiplied by quantity; show the
+      // per-serving amount for editing.
+      setCustomCalories(String(Math.round(entry.calories / entry.quantity)));
+    }
   }, [entry]);
 
   if (!entry) return null;
@@ -37,9 +56,16 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete }: EditEntryMo
   async function handleSave() {
     const parsed = Number(quantity);
     if (!parsed || parsed <= 0) return;
+    if (isCustom && (!customName.trim() || !Number(customCalories))) return;
+
     setBusy(true);
     try {
-      await onSave(parsed);
+      await onSave({
+        quantity: parsed,
+        ...(isCustom
+          ? { customFoodName: customName.trim(), customCalories: Number(customCalories) }
+          : {}),
+      });
     } finally {
       setBusy(false);
     }
@@ -61,10 +87,35 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete }: EditEntryMo
         <Animated.View entering={SlideInDown.duration(280)} exiting={SlideOutDown.duration(200)}>
           <ThemedView type="surface" style={[styles.sheet, Shadow.raised]}>
             <View style={[styles.handle, { backgroundColor: theme.border }]} />
-            <ThemedText type="h2">{entry.foodName}</ThemedText>
-            <ThemedText themeColor="textSecondary" type="caption">
-              {entry.servingSize} {entry.servingUnit} per serving
-            </ThemedText>
+
+            {isCustom ? (
+              <View style={styles.field}>
+                <ThemedText type="caption" themeColor="textSecondary">
+                  Food name
+                </ThemedText>
+                <TextField value={customName} onChangeText={setCustomName} />
+              </View>
+            ) : (
+              <>
+                <ThemedText type="h2">{entry.foodName}</ThemedText>
+                <ThemedText themeColor="textSecondary" type="caption">
+                  {entry.servingSize} {entry.servingUnit} per serving
+                </ThemedText>
+              </>
+            )}
+
+            {isCustom ? (
+              <View style={styles.field}>
+                <ThemedText type="caption" themeColor="textSecondary">
+                  Calories per serving
+                </ThemedText>
+                <TextField
+                  keyboardType="number-pad"
+                  value={customCalories}
+                  onChangeText={setCustomCalories}
+                />
+              </View>
+            ) : null}
 
             <View style={styles.field}>
               <ThemedText type="caption" themeColor="textSecondary">
@@ -82,6 +133,10 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete }: EditEntryMo
                 <Button title="+" variant="secondary" size="sm" onPress={() => adjustQuantity(0.5)} />
               </View>
             </View>
+
+            {!isCustom && onReplaceFood ? (
+              <Button title="Logged the wrong food? Change it" variant="secondary" size="sm" onPress={onReplaceFood} />
+            ) : null}
 
             <Button title="Save changes" onPress={handleSave} loading={busy} />
             <Button title="Delete entry" variant="danger" onPress={handleDelete} loading={busy} />

@@ -1,8 +1,9 @@
 {
-  "name": "calorie-tracker-mobile",
+  "name": "bitelog-mobile",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
     "date-fns": "^4.4.0",
     "expo": "~54.0.0",
     "expo-constants": "~18.0.13",

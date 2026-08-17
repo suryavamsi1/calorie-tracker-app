@@ -1,11 +1,11 @@
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { Card } from '@/components/Card';
-import { EditEntryModal } from '@/components/EditEntryModal';
+import { EditEntryModal, type EntryUpdates } from '@/components/EditEntryModal';
 import { EmptyState } from '@/components/EmptyState';
 import { EntryRow } from '@/components/EntryRow';
 import { ProgressBar } from '@/components/ProgressBar';
@@ -24,9 +24,9 @@ import type { HistoryDayDetail, MealEntry, MealType } from '@/types';
 function toMealEntry(entry: HistoryDayDetail['entries'][number], date: string): MealEntry {
   return {
     id: entry.id,
-    foodId: null,
+    foodId: entry.foodId,
     foodName: entry.foodName,
-    servingSize: 1,
+    servingSize: entry.servingSize,
     servingUnit: entry.servingUnit,
     quantity: entry.quantity,
     calories: entry.calories,
@@ -55,12 +55,19 @@ export default function HistoryDayScreen() {
     }, [load])
   );
 
-  async function handleSaveEntry(quantity: number) {
+  async function handleSaveEntry(updates: EntryUpdates) {
     if (!editingEntry) return;
-    await api.put(`/entries/${editingEntry.id}`, { quantity });
+    await api.put(`/entries/${editingEntry.id}`, updates);
     setEditingEntry(null);
     await load();
     toast.show('Entry updated');
+  }
+
+  function handleReplaceFood() {
+    if (!editingEntry) return;
+    const { id, mealType, entryDate } = editingEntry;
+    setEditingEntry(null);
+    router.push({ pathname: '/add-food', params: { mealType, date: entryDate, entryId: id } });
   }
 
   async function handleDeleteEntry(entry?: MealEntry) {
@@ -173,6 +180,7 @@ export default function HistoryDayScreen() {
         onClose={() => setEditingEntry(null)}
         onSave={handleSaveEntry}
         onDelete={() => handleDeleteEntry()}
+        onReplaceFood={handleReplaceFood}
       />
     </ScreenContainer>
   );

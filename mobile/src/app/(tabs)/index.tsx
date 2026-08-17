@@ -5,9 +5,10 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { EditEntryModal } from '@/components/EditEntryModal';
+import { EditEntryModal, type EntryUpdates } from '@/components/EditEntryModal';
 import { EmptyState } from '@/components/EmptyState';
 import { EntryRow } from '@/components/EntryRow';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProgressRing } from '@/components/ProgressRing';
 import { SkeletonCard } from '@/components/Skeleton';
 import { SwipeableRow } from '@/components/SwipeableRow';
@@ -18,7 +19,8 @@ import { MealColors, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useTheme } from '@/hooks/use-theme';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
+import { getCache, setCache } from '@/lib/cache';
 import { todayDateString } from '@/lib/date';
 import type { MealEntry, MealType } from '@/types';
 
@@ -38,18 +40,30 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MealEntry | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
 
   const date = todayDateString();
+  const cacheKey = `entries:${date}`;
 
   const load = useCallback(async () => {
     try {
       const { entries: fetched } = await api.get<{ entries: MealEntry[] }>(`/entries?date=${date}`);
       setEntries(fetched);
+      setIsOffline(false);
+      setCache(cacheKey, fetched);
+    } catch (err) {
+      const cached = await getCache<MealEntry[]>(cacheKey);
+      if (cached) {
+        setEntries(cached);
+        setIsOffline(true);
+      } else if (!(err instanceof ApiError)) {
+        setIsOffline(true);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [date]);
+  }, [date, cacheKey]);
 
   useFocusEffect(
     useCallback(() => {
@@ -62,12 +76,19 @@ export default function DashboardScreen() {
     await load();
   }
 
-  async function handleSaveEntry(quantity: number) {
+  async function handleSaveEntry(updates: EntryUpdates) {
     if (!editingEntry) return;
-    await api.put(`/entries/${editingEntry.id}`, { quantity });
+    await api.put(`/entries/${editingEntry.id}`, updates);
     setEditingEntry(null);
     await load();
     toast.show('Entry updated');
+  }
+
+  function handleReplaceFood() {
+    if (!editingEntry) return;
+    const { id, mealType, entryDate } = editingEntry;
+    setEditingEntry(null);
+    router.push({ pathname: '/add-food', params: { mealType, date: entryDate, entryId: id } });
   }
 
   async function handleDeleteEntry(entry?: MealEntry) {
@@ -112,6 +133,8 @@ export default function DashboardScreen() {
             <ThemedText type="h1">Today</ThemedText>
           </View>
         </View>
+
+        {isOffline ? <OfflineBanner /> : null}
 
         {loading ? (
           <Card>
@@ -224,6 +247,7 @@ export default function DashboardScreen() {
         onClose={() => setEditingEntry(null)}
         onSave={handleSaveEntry}
         onDelete={() => handleDeleteEntry()}
+        onReplaceFood={handleReplaceFood}
       />
     </ThemedView>
   );

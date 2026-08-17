@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Calorie Tracker",
-    "slug": "calorie-tracker-app",
+    "name": "BiteLog",
+    "slug": "bitelog",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "calorietrackerapp",
+    "scheme": "bitelog",
     "userInterfaceStyle": "automatic",
     "android": {
       "adaptiveIcon": {

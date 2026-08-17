@@ -3,12 +3,17 @@ import path from "path";
 import fs from "fs";
 
 const DATABASE_PATH = process.env.DATABASE_PATH || "./data/calorie-tracker.db";
+const isInMemory = DATABASE_PATH === ":memory:";
 
-const resolvedPath = path.resolve(process.cwd(), DATABASE_PATH);
-fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+const resolvedPath = isInMemory ? DATABASE_PATH : path.resolve(process.cwd(), DATABASE_PATH);
+if (!isInMemory) {
+  fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+}
 
 export const db = new Database(resolvedPath);
-db.pragma("journal_mode = WAL");
+if (!isInMemory) {
+  db.pragma("journal_mode = WAL");
+}
 db.pragma("foreign_keys = ON");
 
 export function initDb() {
@@ -56,5 +61,22 @@ export function initDb() {
       ON meal_entries(user_id, entry_date);
 
     CREATE INDEX IF NOT EXISTS idx_foods_name ON foods(name);
+
+    CREATE TABLE IF NOT EXISTS favorite_foods (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      food_id TEXT NOT NULL REFERENCES foods(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, food_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS events (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      name TEXT NOT NULL,
+      properties TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_events_name ON events(name);
   `);
 }

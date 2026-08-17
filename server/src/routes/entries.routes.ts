@@ -117,9 +117,16 @@ router.post("/", requireAuth, (req: AuthedRequest, res) => {
 const updateEntrySchema = z.object({
   mealType: z.enum(MEAL_TYPES).optional(),
   quantity: z.number().positive().optional(),
+  entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "entryDate must be YYYY-MM-DD").optional(),
+  foodId: z.string().optional(),
+  customFoodName: z.string().min(1).optional(),
+  customCalories: z.number().int().min(0).optional(),
 });
 
 // PUT /entries/:id
+// Supports editing meal type, quantity, date, and correcting the logged
+// food itself: pass `foodId` to switch to a catalog food, or
+// `customFoodName`/`customCalories` to switch to (or edit) a custom entry.
 router.put("/:id", requireAuth, (req: AuthedRequest, res) => {
   const parsed = updateEntrySchema.safeParse(req.body);
   if (!parsed.success) {
@@ -131,14 +138,33 @@ router.put("/:id", requireAuth, (req: AuthedRequest, res) => {
     .get(req.params.id, req.userId) as EntryRow | undefined;
   if (!existing) return res.status(404).json({ error: "Entry not found" });
 
-  const mealType = parsed.data.mealType ?? existing.meal_type;
-  const quantity = parsed.data.quantity ?? existing.quantity;
+  const { mealType, quantity, entryDate, foodId, customFoodName, customCalories } = parsed.data;
 
-  db.prepare("UPDATE meal_entries SET meal_type = ?, quantity = ? WHERE id = ?").run(
-    mealType,
-    quantity,
-    existing.id
-  );
+  let nextFoodId = existing.food_id;
+  let nextCustomName = existing.custom_food_name;
+  let nextCustomCalories = existing.custom_calories;
+
+  if (foodId !== undefined) {
+    const food = fetchFood(foodId);
+    if (!food) return res.status(404).json({ error: "Food not found" });
+    nextFoodId = foodId;
+    nextCustomName = null;
+    nextCustomCalories = null;
+  } else if (customFoodName !== undefined || customCalories !== undefined) {
+    nextFoodId = null;
+    nextCustomName = customFoodName ?? existing.custom_food_name ?? "Custom food";
+    nextCustomCalories = customCalories ?? existing.custom_calories ?? 0;
+  }
+
+  const finalMealType = mealType ?? existing.meal_type;
+  const finalQuantity = quantity ?? existing.quantity;
+  const finalDate = entryDate ?? existing.entry_date;
+
+  db.prepare(
+    `UPDATE meal_entries
+     SET meal_type = ?, quantity = ?, entry_date = ?, food_id = ?, custom_food_name = ?, custom_calories = ?
+     WHERE id = ?`
+  ).run(finalMealType, finalQuantity, finalDate, nextFoodId, nextCustomName, nextCustomCalories, existing.id);
 
   const updated = db.prepare("SELECT * FROM meal_entries WHERE id = ?").get(existing.id) as EntryRow;
   res.json({ entry: toPublicEntry(updated, fetchFood(updated.food_id)) });

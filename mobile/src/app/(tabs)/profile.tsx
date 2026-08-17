@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -11,7 +11,7 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useTheme } from '@/hooks/use-theme';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import type { User } from '@/types';
 
 export default function ProfileScreen() {
@@ -95,8 +95,103 @@ export default function ProfileScreen() {
         )}
       </Card>
 
+      <ChangePasswordCard />
+
       <Button title="Log out" variant="danger" onPress={handleLogout} />
+
+      <DeleteAccountSection />
     </ScreenContainer>
+  );
+}
+
+function ChangePasswordCard() {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleChangePassword() {
+    setError(null);
+    if (newPassword.length < 8) {
+      setError('New password must be at least 8 characters.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.put('/me/password', { currentPassword, newPassword });
+      setCurrentPassword('');
+      setNewPassword('');
+      setOpen(false);
+      toast.show('Password changed');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Unable to change password.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      {open ? (
+        <View style={styles.form}>
+          <ThemedText type="h3">Change password</ThemedText>
+          <TextField
+            label="Current password"
+            secureTextEntry
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+          />
+          <TextField label="New password" secureTextEntry value={newPassword} onChangeText={setNewPassword} />
+          {error ? (
+            <ThemedText themeColor="danger" type="caption">
+              {error}
+            </ThemedText>
+          ) : null}
+          <Button title="Update password" onPress={handleChangePassword} loading={saving} />
+          <Button title="Cancel" variant="ghost" onPress={() => setOpen(false)} />
+        </View>
+      ) : (
+        <Button title="Change password" variant="secondary" onPress={() => setOpen(true)} />
+      )}
+    </Card>
+  );
+}
+
+function DeleteAccountSection() {
+  const { logOut } = useAuth();
+  const [deleting, setDeleting] = useState(false);
+
+  async function performDelete() {
+    setDeleting(true);
+    try {
+      await api.delete('/me');
+      await logOut();
+      router.replace('/welcome');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function confirmDelete() {
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes your account and all logged data. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: performDelete },
+      ]
+    );
+  }
+
+  return (
+    <Card>
+      <ThemedText type="caption" themeColor="textSecondary">
+        Deleting your account permanently removes your profile, entries, and custom foods.
+      </ThemedText>
+      <Button title="Delete account" variant="danger" onPress={confirmDelete} loading={deleting} />
+    </Card>
   );
 }
 

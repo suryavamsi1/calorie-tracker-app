@@ -1,6 +1,6 @@
 import { getToken } from './tokenStorage';
 
-// Base URL of the calorie-tracker API server.
+// Base URL of the BiteLog API server.
 // - iOS simulator / web: http://localhost:4000 works out of the box.
 // - Android emulator: localhost maps to the emulator itself, use 10.0.2.2 instead.
 // - Physical device: use your computer's LAN IP, e.g. http://192.168.1.20:4000.

@@ -1,4 +1,4 @@
-import { useLocalSearchParams, router } from 'expo-router';
+import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -14,19 +14,22 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useToast } from '@/context/ToastContext';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import type { Food, MealType } from '@/types';
 
 type Mode = 'search' | 'quick' | 'custom';
 
 export default function AddFoodScreen() {
-  const params = useLocalSearchParams<{ mealType: MealType; date: string }>();
+  const params = useLocalSearchParams<{ mealType: MealType; date: string; entryId?: string }>();
   const [mealType, setMealType] = useState<MealType>(params.mealType ?? 'snacks');
   const date = params.date ?? new Date().toISOString().slice(0, 10);
+  const entryId = params.entryId;
 
   const [mode, setMode] = useState<Mode>('search');
 
   return (
     <ScreenContainer scroll={false}>
+      <Stack.Screen options={{ title: entryId ? 'Change food' : 'Add food' }} />
       <MealTypeSelector value={mealType} onChange={setMealType} />
 
       <View style={styles.tabs}>
@@ -35,9 +38,9 @@ export default function AddFoodScreen() {
         <ModeTab label="Custom food" active={mode === 'custom'} onPress={() => setMode('custom')} />
       </View>
 
-      {mode === 'search' && <SearchTab mealType={mealType} date={date} />}
-      {mode === 'quick' && <QuickAddTab mealType={mealType} date={date} />}
-      {mode === 'custom' && <CustomFoodTab mealType={mealType} date={date} />}
+      {mode === 'search' && <SearchTab mealType={mealType} date={date} entryId={entryId} />}
+      {mode === 'quick' && <QuickAddTab mealType={mealType} date={date} entryId={entryId} />}
+      {mode === 'custom' && <CustomFoodTab mealType={mealType} date={date} entryId={entryId} />}
     </ScreenContainer>
   );
 }
@@ -85,13 +88,16 @@ function FoodResultCard({
   food,
   onPress,
   onQuickAdd,
+  onToggleFavorite,
   index,
 }: {
   food: Food;
   onPress: () => void;
   onQuickAdd: () => void;
+  onToggleFavorite: () => void;
   index: number;
 }) {
+  const theme = useTheme();
   return (
     <Animated.View entering={FadeInDown.duration(250).delay(Math.min(index, 6) * 30)}>
       <Pressable onPress={onPress}>
@@ -105,9 +111,14 @@ function FoodResultCard({
               {food.calories} cal · {food.servingSize} {food.servingUnit}
             </ThemedText>
           </View>
+          <Pressable onPress={onToggleFavorite} hitSlop={8}>
+            <ThemedText style={styles.favoriteStar} themeColor={food.isFavorite ? 'accent' : 'textTertiary'}>
+              {food.isFavorite ? '★' : '☆'}
+            </ThemedText>
+          </Pressable>
           <Pressable onPress={onQuickAdd} hitSlop={8}>
             <View style={styles.quickAddButton}>
-              <ThemedText type="h3" style={styles.quickAddPlus}>
+              <ThemedText type="h3" style={[styles.quickAddPlus, { color: theme.primary }]}>
                 +
               </ThemedText>
             </View>
@@ -118,21 +129,31 @@ function FoodResultCard({
   );
 }
 
-function SearchTab({ mealType, date }: { mealType: MealType; date: string }) {
+function SearchTab({ mealType, date, entryId }: { mealType: MealType; date: string; entryId?: string }) {
   const toast = useToast();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Food[]>([]);
   const [recentFoods, setRecentFoods] = useState<Food[]>([]);
+  const [favoriteFoods, setFavoriteFoods] = useState<Food[]>([]);
+  const [browseTab, setBrowseTab] = useState<'recent' | 'favorites'>('recent');
   const [searching, setSearching] = useState(false);
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [quantity, setQuantity] = useState('1');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  function loadRecentAndFavorites() {
     api
       .get<{ foods: Food[] }>('/foods/recent')
       .then(({ foods }) => setRecentFoods(foods))
       .catch(() => setRecentFoods([]));
+    api
+      .get<{ foods: Food[] }>('/foods/favorites')
+      .then(({ foods }) => setFavoriteFoods(foods))
+      .catch(() => setFavoriteFoods([]));
+  }
+
+  useEffect(() => {
+    loadRecentAndFavorites();
   }, []);
 
   useEffect(() => {
@@ -145,6 +166,7 @@ function SearchTab({ mealType, date }: { mealType: MealType; date: string }) {
       try {
         const { foods } = await api.get<{ foods: Food[] }>(`/foods?query=${encodeURIComponent(query)}`);
         setResults(foods);
+        track('search_performed', { resultCount: foods.length });
       } finally {
         setSearching(false);
       }
@@ -155,11 +177,49 @@ function SearchTab({ mealType, date }: { mealType: MealType; date: string }) {
   async function logFood(food: Food, qty: number) {
     setSaving(true);
     try {
-      await api.post('/entries', { date, mealType, foodId: food.id, quantity: qty });
-      toast.show(`Added to ${MEAL_TYPE_LABELS[mealType].toLowerCase()}`);
+      if (entryId) {
+        await api.put(`/entries/${entryId}`, { foodId: food.id, quantity: qty, mealType, entryDate: date });
+        toast.show('Entry updated');
+      } else {
+        await api.post('/entries', { date, mealType, foodId: food.id, quantity: qty });
+        toast.show(`Added to ${MEAL_TYPE_LABELS[mealType].toLowerCase()}`);
+        track('food_logged', { method: 'search', mealType });
+      }
       router.back();
     } finally {
       setSaving(false);
+    }
+  }
+
+  function updateFoodInLists(foodId: string, patch: Partial<Food>) {
+    const apply = (list: Food[]) => list.map((f) => (f.id === foodId ? { ...f, ...patch } : f));
+    setResults(apply);
+    setRecentFoods(apply);
+    setFavoriteFoods(apply);
+  }
+
+  async function toggleFavorite(food: Food) {
+    const nowFavorite = !food.isFavorite;
+    updateFoodInLists(food.id, { isFavorite: nowFavorite });
+    if (nowFavorite) {
+      // Newly favorited foods may not already be in the favorites list
+      // (e.g. favorited from search/recent) - add them so the Favorites
+      // tab reflects the change immediately.
+      setFavoriteFoods((list) =>
+        list.some((f) => f.id === food.id) ? list : [{ ...food, isFavorite: true }, ...list]
+      );
+    }
+    try {
+      if (food.isFavorite) {
+        await api.delete(`/foods/${food.id}/favorite`);
+        setFavoriteFoods((list) => list.filter((f) => f.id !== food.id));
+      } else {
+        await api.post(`/foods/${food.id}/favorite`);
+        toast.show('Added to favorites');
+      }
+    } catch {
+      updateFoodInLists(food.id, { isFavorite: food.isFavorite });
+      if (nowFavorite) setFavoriteFoods((list) => list.filter((f) => f.id !== food.id));
     }
   }
 
@@ -177,7 +237,7 @@ function SearchTab({ mealType, date }: { mealType: MealType; date: string }) {
           onChangeText={setQuantity}
         />
         <Button
-          title="Add to meal"
+          title={entryId ? 'Save changes' : 'Add to meal'}
           onPress={() => logFood(selectedFood, Number(quantity) || 1)}
           loading={saving}
         />
@@ -186,8 +246,8 @@ function SearchTab({ mealType, date }: { mealType: MealType; date: string }) {
     );
   }
 
-  const showRecent = !query && recentFoods.length > 0;
-  const list = showRecent ? recentFoods : results;
+  const browsingList = browseTab === 'recent' ? recentFoods : favoriteFoods;
+  const list = query ? results : browsingList;
 
   return (
     <View style={styles.flex}>
@@ -202,10 +262,15 @@ function SearchTab({ mealType, date }: { mealType: MealType; date: string }) {
         </View>
       ) : null}
 
-      {showRecent ? (
-        <ThemedText type="overline" themeColor="textSecondary" style={styles.sectionLabel}>
-          Recent foods
-        </ThemedText>
+      {!query ? (
+        <View style={styles.browseTabsRow}>
+          <ModeTab label="Recent" active={browseTab === 'recent'} onPress={() => setBrowseTab('recent')} />
+          <ModeTab
+            label="Favorites"
+            active={browseTab === 'favorites'}
+            onPress={() => setBrowseTab('favorites')}
+          />
+        </View>
       ) : null}
 
       <FlatList
@@ -222,6 +287,7 @@ function SearchTab({ mealType, date }: { mealType: MealType; date: string }) {
               setQuantity('1');
             }}
             onQuickAdd={() => logFood(item, 1)}
+            onToggleFavorite={() => toggleFavorite(item)}
           />
         )}
         ListEmptyComponent={
@@ -231,12 +297,14 @@ function SearchTab({ mealType, date }: { mealType: MealType; date: string }) {
               title="No matches"
               subtitle="Try quick add or create a custom food instead."
             />
-          ) : !query && recentFoods.length === 0 ? (
+          ) : !query && browseTab === 'recent' && recentFoods.length === 0 ? (
             <EmptyState
               icon="🍽️"
               title="Search for a food"
               subtitle="Your recently logged foods will show up here too."
             />
+          ) : !query && browseTab === 'favorites' && favoriteFoods.length === 0 ? (
+            <EmptyState icon="★" title="No favorites yet" subtitle="Tap the star on a food to save it here." />
           ) : null
         }
       />
@@ -244,7 +312,7 @@ function SearchTab({ mealType, date }: { mealType: MealType; date: string }) {
   );
 }
 
-function QuickAddTab({ mealType, date }: { mealType: MealType; date: string }) {
+function QuickAddTab({ mealType, date, entryId }: { mealType: MealType; date: string; entryId?: string }) {
   const toast = useToast();
   const [name, setName] = useState('');
   const [calories, setCalories] = useState('');
@@ -255,14 +323,25 @@ function QuickAddTab({ mealType, date }: { mealType: MealType; date: string }) {
     if (!cals) return;
     setSaving(true);
     try {
-      await api.post('/entries', {
-        date,
-        mealType,
-        quantity: 1,
-        customFoodName: name.trim() || 'Quick add',
-        customCalories: cals,
-      });
-      toast.show(`Added to ${MEAL_TYPE_LABELS[mealType].toLowerCase()}`);
+      if (entryId) {
+        await api.put(`/entries/${entryId}`, {
+          mealType,
+          entryDate: date,
+          customFoodName: name.trim() || 'Quick add',
+          customCalories: cals,
+        });
+        toast.show('Entry updated');
+      } else {
+        await api.post('/entries', {
+          date,
+          mealType,
+          quantity: 1,
+          customFoodName: name.trim() || 'Quick add',
+          customCalories: cals,
+        });
+        toast.show(`Added to ${MEAL_TYPE_LABELS[mealType].toLowerCase()}`);
+        track('food_logged', { method: 'quick_add', mealType });
+      }
       router.back();
     } finally {
       setSaving(false);
@@ -276,12 +355,12 @@ function QuickAddTab({ mealType, date }: { mealType: MealType; date: string }) {
       </ThemedText>
       <TextField label="Food name (optional)" value={name} onChangeText={setName} placeholder="Snack" />
       <TextField label="Calories" keyboardType="number-pad" value={calories} onChangeText={setCalories} />
-      <Button title="Add to meal" onPress={handleSave} loading={saving} />
+      <Button title={entryId ? 'Save changes' : 'Add to meal'} onPress={handleSave} loading={saving} />
     </Card>
   );
 }
 
-function CustomFoodTab({ mealType, date }: { mealType: MealType; date: string }) {
+function CustomFoodTab({ mealType, date, entryId }: { mealType: MealType; date: string; entryId?: string }) {
   const toast = useToast();
   const [name, setName] = useState('');
   const [servingSize, setServingSize] = useState('1');
@@ -299,8 +378,14 @@ function CustomFoodTab({ mealType, date }: { mealType: MealType; date: string })
         servingUnit: servingUnit.trim() || 'serving',
         calories: Number(calories),
       });
-      await api.post('/entries', { date, mealType, foodId: food.id, quantity: 1 });
-      toast.show(`Added to ${MEAL_TYPE_LABELS[mealType].toLowerCase()}`);
+      if (entryId) {
+        await api.put(`/entries/${entryId}`, { foodId: food.id, mealType, entryDate: date });
+        toast.show('Entry updated');
+      } else {
+        await api.post('/entries', { date, mealType, foodId: food.id, quantity: 1 });
+        toast.show(`Added to ${MEAL_TYPE_LABELS[mealType].toLowerCase()}`);
+        track('food_logged', { method: 'custom', mealType });
+      }
       router.back();
     } finally {
       setSaving(false);
@@ -316,7 +401,7 @@ function CustomFoodTab({ mealType, date }: { mealType: MealType; date: string })
       <TextField label="Serving size" keyboardType="decimal-pad" value={servingSize} onChangeText={setServingSize} />
       <TextField label="Serving unit" value={servingUnit} onChangeText={setServingUnit} placeholder="cup" />
       <TextField label="Calories per serving" keyboardType="number-pad" value={calories} onChangeText={setCalories} />
-      <Button title="Save and add to meal" onPress={handleSave} loading={saving} />
+      <Button title={entryId ? 'Save changes' : 'Save and add to meal'} onPress={handleSave} loading={saving} />
     </Card>
   );
 }
@@ -343,6 +428,11 @@ const styles = StyleSheet.create({
   sectionLabel: {
     marginTop: Spacing.one,
   },
+  browseTabsRow: {
+    flexDirection: 'row',
+    gap: Spacing.three,
+    marginTop: Spacing.one,
+  },
   resultsList: {
     gap: Spacing.two,
     paddingVertical: Spacing.two,
@@ -352,11 +442,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: Spacing.one,
+    gap: Spacing.two,
   },
   resultInfo: {
     flex: 1,
     gap: 2,
     paddingRight: Spacing.two,
+  },
+  favoriteStar: {
+    fontSize: 20,
   },
   quickAddButton: {
     width: 32,

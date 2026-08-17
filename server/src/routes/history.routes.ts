@@ -68,6 +68,7 @@ router.get("/:date", requireAuth, (req: AuthedRequest, res) => {
     id: string;
     meal_type: string;
     quantity: number;
+    food_id: string | null;
     custom_food_name: string | null;
     custom_calories: number | null;
     food_name: string | null;
@@ -80,9 +81,11 @@ router.get("/:date", requireAuth, (req: AuthedRequest, res) => {
     const caloriesPerServing = row.food_calories ?? row.custom_calories ?? 0;
     return {
       id: row.id,
+      foodId: row.food_id,
       foodName: row.food_name ?? row.custom_food_name ?? "Unknown food",
       mealType: row.meal_type,
       quantity: row.quantity,
+      servingSize: row.serving_size ?? 1,
       servingUnit: row.serving_unit ?? "serving",
       calories: Math.round(caloriesPerServing * row.quantity),
     };

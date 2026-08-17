@@ -26,6 +26,7 @@ export interface Food {
   servingUnit: string;
   calories: number;
   source: string;
+  isFavorite: boolean;
 }
 
 export interface MealEntry {
@@ -56,9 +57,11 @@ export interface HistoryDayDetail {
   remainingCalories: number | null;
   entries: Array<{
     id: string;
+    foodId: string | null;
     foodName: string;
     mealType: MealType;
     quantity: number;
+    servingSize: number;
     servingUnit: string;
     calories: number;
   }>;

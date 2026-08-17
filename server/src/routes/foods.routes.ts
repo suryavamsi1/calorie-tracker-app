@@ -17,7 +17,7 @@ interface FoodRow {
   created_by_user_id: string | null;
 }
 
-function toPublicFood(row: FoodRow) {
+function toPublicFood(row: FoodRow, favoriteIds?: Set<string>) {
   return {
     id: row.id,
     name: row.name,
@@ -26,7 +26,15 @@ function toPublicFood(row: FoodRow) {
     servingUnit: row.serving_unit,
     calories: row.calories,
     source: row.source,
+    isFavorite: favoriteIds?.has(row.id) ?? false,
   };
+}
+
+function getFavoriteIds(userId: string): Set<string> {
+  const rows = db.prepare("SELECT food_id FROM favorite_foods WHERE user_id = ?").all(userId) as Array<{
+    food_id: string;
+  }>;
+  return new Set(rows.map((r) => r.food_id));
 }
 
 // GET /foods?query=apple
@@ -50,7 +58,8 @@ router.get("/", requireAuth, (req: AuthedRequest, res) => {
         )
         .all(req.userId) as FoodRow[]);
 
-  res.json({ foods: rows.map(toPublicFood) });
+  const favoriteIds = getFavoriteIds(req.userId!);
+  res.json({ foods: rows.map((row) => toPublicFood(row, favoriteIds)) });
 });
 
 // GET /foods/recent - foods this user has logged most recently, deduped,
@@ -70,8 +79,54 @@ router.get("/recent", requireAuth, (req: AuthedRequest, res) => {
     )
     .all(req.userId, limit) as FoodRow[];
 
-  res.json({ foods: rows.map(toPublicFood) });
+  const favoriteIds = getFavoriteIds(req.userId!);
+  res.json({ foods: rows.map((row) => toPublicFood(row, favoriteIds)) });
 });
+
+// GET /foods/favorites - foods this user has starred, newest favorite first.
+router.get("/favorites", requireAuth, (req: AuthedRequest, res) => {
+  const rows = db
+    .prepare(
+      `SELECT f.*
+       FROM favorite_foods ff
+       JOIN foods f ON f.id = ff.food_id
+       WHERE ff.user_id = ?
+       ORDER BY ff.created_at DESC`
+    )
+    .all(req.userId) as FoodRow[];
+
+  res.json({ foods: rows.map((row) => toPublicFood(row, new Set(rows.map((r) => r.id)))) });
+});
+
+// POST /foods/:id/favorite - star a food
+router.post("/:id/favorite", requireAuth, (req: AuthedRequest, res) => {
+  const food = fetchFoodOr404(req, res, String(req.params.id));
+  if (!food) return;
+
+  db.prepare(
+    `INSERT OR IGNORE INTO favorite_foods (user_id, food_id) VALUES (?, ?)`
+  ).run(req.userId, food.id);
+
+  res.status(201).json({ food: toPublicFood(food, new Set([food.id])) });
+});
+
+// DELETE /foods/:id/favorite - unstar a food
+router.delete("/:id/favorite", requireAuth, (req: AuthedRequest, res) => {
+  db.prepare("DELETE FROM favorite_foods WHERE user_id = ? AND food_id = ?").run(
+    req.userId,
+    req.params.id
+  );
+  res.status(204).send();
+});
+
+function fetchFoodOr404(req: AuthedRequest, res: import("express").Response, id: string): FoodRow | undefined {
+  const food = db.prepare("SELECT * FROM foods WHERE id = ?").get(id) as FoodRow | undefined;
+  if (!food) {
+    res.status(404).json({ error: "Food not found" });
+    return undefined;
+  }
+  return food;
+}
 
 const customFoodSchema = z.object({
   name: z.string().min(1),
