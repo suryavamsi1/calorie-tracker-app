@@ -53,6 +53,26 @@ router.get("/", requireAuth, (req: AuthedRequest, res) => {
   res.json({ foods: rows.map(toPublicFood) });
 });
 
+// GET /foods/recent - foods this user has logged most recently, deduped,
+// newest use first. Powers the "Recent foods" section of the add-food screen.
+router.get("/recent", requireAuth, (req: AuthedRequest, res) => {
+  const limit = Math.min(Number(req.query.limit) || 10, 30);
+
+  const rows = db
+    .prepare(
+      `SELECT f.*, MAX(me.created_at) as last_used
+       FROM meal_entries me
+       JOIN foods f ON f.id = me.food_id
+       WHERE me.user_id = ?
+       GROUP BY f.id
+       ORDER BY last_used DESC
+       LIMIT ?`
+    )
+    .all(req.userId, limit) as FoodRow[];
+
+  res.json({ foods: rows.map(toPublicFood) });
+});
+
 const customFoodSchema = z.object({
   name: z.string().min(1),
   brand: z.string().optional(),
@@ -60,7 +80,6 @@ const customFoodSchema = z.object({
   servingUnit: z.string().min(1).default("serving"),
   calories: z.number().int().min(0),
 });
-
 // POST /foods/custom
 router.post("/custom", requireAuth, (req: AuthedRequest, res) => {
   const parsed = customFoodSchema.safeParse(req.body);

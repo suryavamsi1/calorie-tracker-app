@@ -1,20 +1,54 @@
+import { useCallback } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, type PressableProps } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
+export type ButtonSize = 'md' | 'sm';
 
 export interface ButtonProps extends Omit<PressableProps, 'style'> {
   title: string;
   variant?: ButtonVariant;
+  size?: ButtonSize;
   loading?: boolean;
 }
 
-export function Button({ title, variant = 'primary', loading, disabled, ...rest }: ButtonProps) {
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+export function Button({
+  title,
+  variant = 'primary',
+  size = 'md',
+  loading,
+  disabled,
+  onPressIn,
+  onPressOut,
+  ...rest
+}: ButtonProps) {
   const theme = useTheme();
   const isDisabled = disabled || loading;
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  const handlePressIn = useCallback<NonNullable<PressableProps['onPressIn']>>(
+    (e) => {
+      scale.value = withTiming(0.96, { duration: 90 });
+      onPressIn?.(e);
+    },
+    [onPressIn, scale]
+  );
+
+  const handlePressOut = useCallback<NonNullable<PressableProps['onPressOut']>>(
+    (e) => {
+      scale.value = withTiming(1, { duration: 120 });
+      onPressOut?.(e);
+    },
+    [onPressOut, scale]
+  );
 
   const backgroundColor =
     variant === 'primary'
@@ -28,34 +62,41 @@ export function Button({ title, variant = 'primary', loading, disabled, ...rest 
   const textColor = variant === 'primary' || variant === 'danger' ? '#ffffff' : theme.text;
 
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       disabled={isDisabled}
-      style={({ pressed }) => [
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={[
         styles.button,
-        { backgroundColor, opacity: isDisabled ? 0.6 : pressed ? 0.85 : 1 },
+        size === 'sm' && styles.buttonSm,
+        { backgroundColor, opacity: isDisabled ? 0.5 : 1 },
+        animatedStyle,
       ]}
       {...rest}
     >
       {loading ? (
         <ActivityIndicator color={textColor} />
       ) : (
-        <ThemedText style={[styles.label, { color: textColor }]}>{title}</ThemedText>
+        <ThemedText type="bodyBold" style={{ color: textColor }}>
+          {title}
+        </ThemedText>
       )}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: Spacing.two,
+    borderRadius: Radius.md,
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.four,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
+  buttonSm: {
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.sm,
   },
 });

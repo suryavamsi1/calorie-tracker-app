@@ -7,13 +7,17 @@ import { Card } from '@/components/Card';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { TextField } from '@/components/TextField';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
 import type { User } from '@/types';
 
 export default function ProfileScreen() {
   const { user, logOut, setUser } = useAuth();
+  const theme = useTheme();
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user?.name ?? '');
   const [weightKg, setWeightKg] = useState(user?.weightKg ? String(user.weightKg) : '');
@@ -36,6 +40,7 @@ export default function ProfileScreen() {
           : { user: updated };
       setUser(withGoal);
       setEditing(false);
+      toast.show('Profile updated');
     } catch {
       setError('Unable to save changes. Please try again.');
     } finally {
@@ -52,9 +57,19 @@ export default function ProfileScreen() {
 
   return (
     <ScreenContainer>
-      <ThemedText type="title" style={styles.title}>
-        Profile
-      </ThemedText>
+      <View style={styles.header}>
+        <View style={[styles.avatar, { backgroundColor: theme.primarySoft }]}>
+          <ThemedText type="h2" themeColor="primary">
+            {(user.name ?? user.email).charAt(0).toUpperCase()}
+          </ThemedText>
+        </View>
+        <View>
+          <ThemedText type="h2">{user.name ?? 'Your profile'}</ThemedText>
+          <ThemedText type="caption" themeColor="textSecondary">
+            {user.email}
+          </ThemedText>
+        </View>
+      </View>
 
       <Card>
         {editing ? (
@@ -63,7 +78,7 @@ export default function ProfileScreen() {
             <TextField label="Weight (kg)" keyboardType="decimal-pad" value={weightKg} onChangeText={setWeightKg} />
             <TextField label="Daily calorie goal" keyboardType="number-pad" value={goal} onChangeText={setGoal} />
             {error ? (
-              <ThemedText themeColor="danger" type="small">
+              <ThemedText themeColor="danger" type="caption">
                 {error}
               </ThemedText>
             ) : null}
@@ -72,8 +87,6 @@ export default function ProfileScreen() {
           </View>
         ) : (
           <View style={styles.form}>
-            <Row label="Name" value={user.name ?? '—'} />
-            <Row label="Email" value={user.email} />
             <Row label="Weight" value={user.weightKg ? `${user.weightKg} kg` : '—'} />
             <Row label="Goal type" value={user.goalType ?? '—'} />
             <Row label="Daily calorie goal" value={user.dailyCalorieGoal ? `${user.dailyCalorieGoal} cal` : '—'} />
@@ -90,17 +103,26 @@ export default function ProfileScreen() {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.row}>
-      <ThemedText type="small" themeColor="textSecondary">
+      <ThemedText type="caption" themeColor="textSecondary">
         {label}
       </ThemedText>
-      <ThemedText type="smallBold">{value}</ThemedText>
+      <ThemedText type="bodyBold">{value}</ThemedText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  title: {
-    fontSize: 28,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   form: {
     gap: Spacing.three,

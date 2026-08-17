@@ -2,20 +2,44 @@ import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { Card } from '@/components/Card';
 import { EditEntryModal } from '@/components/EditEntryModal';
+import { EmptyState } from '@/components/EmptyState';
 import { EntryRow } from '@/components/EntryRow';
+import { ProgressBar } from '@/components/ProgressBar';
 import { ScreenContainer } from '@/components/ScreenContainer';
+import { SkeletonCard } from '@/components/Skeleton';
+import { SwipeableRow } from '@/components/SwipeableRow';
 import { ThemedText } from '@/components/themed-text';
 import { MEAL_TYPES, MEAL_TYPE_LABELS } from '@/constants/options';
-import { Spacing } from '@/constants/theme';
+import { MealColors, Spacing } from '@/constants/theme';
+import { useToast } from '@/context/ToastContext';
+import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
 import { formatDisplayDate } from '@/lib/date';
 import type { HistoryDayDetail, MealEntry, MealType } from '@/types';
 
+function toMealEntry(entry: HistoryDayDetail['entries'][number], date: string): MealEntry {
+  return {
+    id: entry.id,
+    foodId: null,
+    foodName: entry.foodName,
+    servingSize: 1,
+    servingUnit: entry.servingUnit,
+    quantity: entry.quantity,
+    calories: entry.calories,
+    mealType: entry.mealType,
+    entryDate: date,
+    createdAt: '',
+  };
+}
+
 export default function HistoryDayScreen() {
   const { date } = useLocalSearchParams<{ date: string }>();
+  const theme = useTheme();
+  const toast = useToast();
   const [detail, setDetail] = useState<HistoryDayDetail | null>(null);
   const [editingEntry, setEditingEntry] = useState<MealEntry | null>(null);
 
@@ -36,19 +60,24 @@ export default function HistoryDayScreen() {
     await api.put(`/entries/${editingEntry.id}`, { quantity });
     setEditingEntry(null);
     await load();
+    toast.show('Entry updated');
   }
 
-  async function handleDeleteEntry() {
-    if (!editingEntry) return;
-    await api.delete(`/entries/${editingEntry.id}`);
-    setEditingEntry(null);
+  async function handleDeleteEntry(entry?: MealEntry) {
+    const target = entry ?? editingEntry;
+    if (!target) return;
+    await api.delete(`/entries/${target.id}`);
+    if (editingEntry?.id === target.id) setEditingEntry(null);
     await load();
+    toast.show('Entry deleted', 'info');
   }
 
   if (!detail) {
     return (
       <ScreenContainer>
-        <ThemedText>Loading…</ThemedText>
+        <Card>
+          <SkeletonCard />
+        </Card>
       </ScreenContainer>
     );
   }
@@ -63,99 +92,103 @@ export default function HistoryDayScreen() {
     entriesByMeal[entry.mealType]?.push(entry);
   }
 
+  const overGoal = detail.remainingCalories !== null && detail.remainingCalories < 0;
+  const progress = detail.calorieGoal ? Math.min(detail.totalCalories / detail.calorieGoal, 1) : 0;
+
   return (
     <ScreenContainer>
-      <ThemedText type="title" style={styles.title}>
-        {formatDisplayDate(detail.date)}
-      </ThemedText>
+      <ThemedText type="h1">{formatDisplayDate(detail.date)}</ThemedText>
 
-      <Card>
-        <View style={styles.row}>
-          <ThemedText type="small" themeColor="textSecondary">
-            Total calories
-          </ThemedText>
-          <ThemedText type="smallBold">{detail.totalCalories}</ThemedText>
-        </View>
-        {detail.calorieGoal !== null ? (
+      <Animated.View entering={FadeInDown.duration(350)}>
+        <Card>
           <View style={styles.row}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Goal
+            <ThemedText type="caption" themeColor="textSecondary">
+              Total calories
             </ThemedText>
-            <ThemedText type="smallBold">{detail.calorieGoal}</ThemedText>
+            <ThemedText type="h3">{detail.totalCalories}</ThemedText>
           </View>
-        ) : null}
-        {detail.remainingCalories !== null ? (
-          <View style={styles.row}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Remaining
-            </ThemedText>
-            <ThemedText
-              type="smallBold"
-              themeColor={detail.remainingCalories < 0 ? 'danger' : 'success'}
-            >
-              {detail.remainingCalories}
-            </ThemedText>
-          </View>
-        ) : null}
-      </Card>
 
-      {MEAL_TYPES.map((mealType) => {
-        const mealEntries = entriesByMeal[mealType];
-        if (mealEntries.length === 0) return null;
-        return (
-          <Card key={mealType}>
-            <ThemedText type="smallBold">{MEAL_TYPE_LABELS[mealType]}</ThemedText>
-            {mealEntries.map((entry) => (
-              <EntryRow
-                key={entry.id}
-                entry={{
-                  id: entry.id,
-                  foodId: null,
-                  foodName: entry.foodName,
-                  servingSize: 1,
-                  servingUnit: entry.servingUnit,
-                  quantity: entry.quantity,
-                  calories: entry.calories,
-                  mealType: entry.mealType,
-                  entryDate: detail.date,
-                  createdAt: '',
-                }}
-                onPress={() =>
-                  setEditingEntry({
-                    id: entry.id,
-                    foodId: null,
-                    foodName: entry.foodName,
-                    servingSize: 1,
-                    servingUnit: entry.servingUnit,
-                    quantity: entry.quantity,
-                    calories: entry.calories,
-                    mealType: entry.mealType,
-                    entryDate: detail.date,
-                    createdAt: '',
-                  })
-                }
+          {detail.calorieGoal !== null ? (
+            <>
+              <ProgressBar
+                progress={progress}
+                color={overGoal ? theme.danger : theme.success}
+                height={8}
+                style={styles.progressBar}
               />
-            ))}
-          </Card>
-        );
-      })}
+              <View style={styles.row}>
+                <ThemedText type="caption" themeColor="textSecondary">
+                  Goal
+                </ThemedText>
+                <ThemedText type="bodyBold">{detail.calorieGoal}</ThemedText>
+              </View>
+              <View style={styles.row}>
+                <ThemedText type="caption" themeColor="textSecondary">
+                  Remaining
+                </ThemedText>
+                <ThemedText type="bodyBold" themeColor={overGoal ? 'danger' : 'success'}>
+                  {detail.remainingCalories}
+                </ThemedText>
+              </View>
+            </>
+          ) : null}
+        </Card>
+      </Animated.View>
+
+      {detail.entries.length === 0 ? (
+        <Card>
+          <EmptyState icon="📭" title="No foods logged" subtitle="This day doesn't have any entries." />
+        </Card>
+      ) : (
+        MEAL_TYPES.map((mealType, index) => {
+          const mealEntries = entriesByMeal[mealType];
+          if (mealEntries.length === 0) return null;
+          return (
+            <Animated.View key={mealType} entering={FadeInDown.duration(350).delay(80 * (index + 1))}>
+              <Card>
+                <View style={styles.mealTitleRow}>
+                  <ThemedText>{MealColors[mealType].icon}</ThemedText>
+                  <ThemedText type="h3">{MEAL_TYPE_LABELS[mealType]}</ThemedText>
+                </View>
+                {mealEntries.map((entry) => (
+                  <SwipeableRow
+                    key={entry.id}
+                    onEdit={() => setEditingEntry(toMealEntry(entry, detail.date))}
+                    onDelete={() => handleDeleteEntry(toMealEntry(entry, detail.date))}
+                  >
+                    <EntryRow
+                      entry={toMealEntry(entry, detail.date)}
+                      onPress={() => setEditingEntry(toMealEntry(entry, detail.date))}
+                    />
+                  </SwipeableRow>
+                ))}
+              </Card>
+            </Animated.View>
+          );
+        })
+      )}
 
       <EditEntryModal
         entry={editingEntry}
         onClose={() => setEditingEntry(null)}
         onSave={handleSaveEntry}
-        onDelete={handleDeleteEntry}
+        onDelete={() => handleDeleteEntry()}
       />
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  title: {
-    fontSize: 24,
-  },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  progressBar: {
+    marginVertical: Spacing.one,
+  },
+  mealTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
   },
 });
