@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { Checkbox } from '@/components/Checkbox';
+import { Button } from '@/components/Button';
 import { Divider } from '@/components/Divider';
 import { Icon } from '@/components/Icon';
 import { ScreenContainer } from '@/components/ScreenContainer';
@@ -25,18 +26,17 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit() {
     setError(null);
-    if (!email || !password) {
-      setError('Enter an email and password.');
-      return;
-    }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
-      return;
-    }
+    const nextEmailError = !email.trim() ? 'Enter your email.' : !/^\S+@\S+\.\S+$/.test(email.trim()) ? 'Enter a valid email address.' : null;
+    const nextPasswordError = !password ? 'Enter a password.' : password.length < 8 ? 'Password must be at least 8 characters.' : null;
+    setEmailError(nextEmailError);
+    setPasswordError(nextPasswordError);
+    if (nextEmailError || nextPasswordError) return;
     if (!agreedToTerms) {
       setError('Please agree to the Terms of Service and Privacy Policy.');
       return;
@@ -78,8 +78,12 @@ export default function SignUpScreen() {
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(text) => {
+          setEmail(text);
+          setEmailError(null);
+        }}
         placeholder="you@example.com"
+        error={emailError}
       />
       <View>
         <TextField
@@ -87,17 +91,23 @@ export default function SignUpScreen() {
           icon="lock-closed-outline"
           secureTextEntry={!showPassword}
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(text) => {
+            setPassword(text);
+            setPasswordError(null);
+          }}
           placeholder="••••••••"
+          error={passwordError}
           rightAccessory={
             <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
               <Icon name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={theme.textSecondary} />
             </Pressable>
           }
         />
-        <ThemedText type="caption" themeColor="textSecondary" style={styles.passwordHint}>
-          Must be at least 8 characters
-        </ThemedText>
+        {passwordError ? null : (
+          <ThemedText type="caption" themeColor="textSecondary" style={styles.passwordHint}>
+            Must be at least 8 characters
+          </ThemedText>
+        )}
       </View>
 
       <Checkbox checked={agreedToTerms} onChange={setAgreedToTerms}>
@@ -119,19 +129,9 @@ export default function SignUpScreen() {
         </ThemedText>
       ) : null}
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={handleSubmit}
-        disabled={loading}
-        style={({ pressed }) => [
-          styles.primaryButton,
-          { backgroundColor: theme.success, shadowColor: theme.success, opacity: pressed || loading ? 0.85 : 1 },
-        ]}
-      >
-        <ThemedText type="h2" style={styles.primaryButtonLabel}>
-          {loading ? 'Creating account\u2026' : 'Create Account'}
-        </ThemedText>
-      </Pressable>
+      <View style={styles.primaryButton}>
+        <Button title="Create Account" onPress={handleSubmit} loading={loading} variant="accent" />
+      </View>
 
       <Divider label="OR" />
 
@@ -184,17 +184,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.two,
   },
   primaryButton: {
-    minHeight: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Radius.lg,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 4,
-  },
-  primaryButtonLabel: {
-    color: '#002109',
+    marginTop: Spacing.one,
   },
   passwordHint: {
     marginTop: Spacing.one,

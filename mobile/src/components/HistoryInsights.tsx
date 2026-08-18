@@ -82,12 +82,16 @@ export function WeightTrendCard() {
   const [logs, setLogs] = useState<WeightLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
+  const [error, setError] = useState(false);
 
   const load = useCallback(() => {
     api
       .get<{ logs: WeightLog[] }>('/weight-logs?limit=7')
-      .then(({ logs: fetched }) => setLogs(fetched))
-      .catch(() => setLogs([]))
+      .then(({ logs: fetched }) => {
+        setLogs(fetched);
+        setError(false);
+      })
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
 
@@ -96,6 +100,23 @@ export function WeightTrendCard() {
   }, [load]);
 
   if (loading) return null;
+
+  if (error) {
+    return (
+      <Card style={styles.weightEmptyCard}>
+        <View style={[styles.weightIconWrap, { backgroundColor: theme.dangerSoft }]}>
+          <Icon name="alert-circle-outline" size={20} color={theme.onDangerSoft} />
+        </View>
+        <View style={styles.flexOne}>
+          <ThemedText type="h3">Weight Trend</ThemedText>
+          <ThemedText type="caption" themeColor="textSecondary">
+            Couldn&apos;t load your weight trend. Check your connection.
+          </ThemedText>
+        </View>
+        <Button title="Retry" size="sm" variant="secondary" onPress={load} />
+      </Card>
+    );
+  }
 
   if (logs.length < 2) {
     return (
@@ -181,42 +202,57 @@ export function WeightTrendCard() {
   );
 }
 
-export function MacroConsistencyCard({ days }: { days: HistoryDay[] }) {
+export function MacroConsistencyCard({
+  days,
+  proteinGoalG,
+  carbsGoalG,
+  fatGoalG,
+}: {
+  days: HistoryDay[];
+  proteinGoalG: number | null;
+  carbsGoalG: number | null;
+  fatGoalG: number | null;
+}) {
   const theme = useTheme();
   const recent = days.slice(0, 7);
   if (recent.length === 0) return null;
 
-  const proteinHits = countHits(recent, (d) => d.totalProteinG, (d) => d.calorieGoal);
-  const carbsHits = countHits(recent, (d) => d.totalCarbsG, (d) => d.calorieGoal);
-  const fatHits = countHits(recent, (d) => d.totalFatG, (d) => d.calorieGoal);
+  const proteinHits = countHits(recent, (d) => d.totalProteinG, proteinGoalG);
+  const carbsHits = countHits(recent, (d) => d.totalCarbsG, carbsGoalG);
+  const fatHits = countHits(recent, (d) => d.totalFatG, fatGoalG);
 
   return (
     <Card style={styles.consistencyCard}>
       <ThemedText type="h3">Macro Consistency</ThemedText>
-      <ConsistencyRow label="Protein" hits={proteinHits} total={recent.length} color={MacroColors.protein} theme={theme} />
-      <ConsistencyRow label="Carbs" hits={carbsHits} total={recent.length} color={MacroColors.carbs} theme={theme} />
-      <ConsistencyRow label="Fats" hits={fatHits} total={recent.length} color={MacroColors.fat} theme={theme} />
+      <ConsistencyRow label="Protein" hits={proteinHits} total={recent.length} goal={proteinGoalG} color={MacroColors.protein} theme={theme} />
+      <ConsistencyRow label="Carbs" hits={carbsHits} total={recent.length} goal={carbsGoalG} color={MacroColors.carbs} theme={theme} />
+      <ConsistencyRow label="Fats" hits={fatHits} total={recent.length} goal={fatGoalG} color={MacroColors.fat} theme={theme} />
     </Card>
   );
 }
 
-// A day "hits" a macro if it has any calorie goal set and logged food that day
-// (used as a proxy for "logged consistently", since per-macro goals aren't
-// always set) - counts days with any logged calories toward the streak.
-function countHits(days: HistoryDay[], _getValue: (d: HistoryDay) => number, getGoal: (d: HistoryDay) => number | null) {
-  return days.filter((d) => d.totalCalories > 0 && getGoal(d) !== null).length;
+// A day "hits" a macro goal when it's logged food that day and reached at
+// least 90% of that macro's daily goal (a small buffer since hitting a gram
+// target exactly every day isn't realistic). Returns null (not a count) when
+// no goal is set for that macro, so the UI can show "Not set" instead of a
+// misleading 0/7.
+function countHits(days: HistoryDay[], getValue: (d: HistoryDay) => number, goal: number | null): number | null {
+  if (goal === null || goal <= 0) return null;
+  return days.filter((d) => d.totalCalories > 0 && getValue(d) >= goal * 0.9).length;
 }
 
 function ConsistencyRow({
   label,
   hits,
   total,
+  goal,
   color,
   theme,
 }: {
   label: string;
-  hits: number;
+  hits: number | null;
   total: number;
+  goal: number | null;
   color: string;
   theme: ReturnType<typeof useTheme>;
 }) {
@@ -226,12 +262,17 @@ function ConsistencyRow({
         <ThemedText type="small" themeColor="textSecondary">
           {label}
         </ThemedText>
-        <ThemedText type="overline" style={{ color }}>
-          {hits}/{total} Days
+        <ThemedText type="overline" style={{ color: goal === null ? theme.textTertiary : color }}>
+          {goal === null || hits === null ? 'Not set' : `${hits}/${total} Days`}
         </ThemedText>
       </View>
       <View style={[styles.consistencyTrack, { backgroundColor: theme.backgroundSelected }]}>
-        <View style={[styles.consistencyFill, { width: `${(hits / total) * 100}%`, backgroundColor: color }]} />
+        <View
+          style={[
+            styles.consistencyFill,
+            { width: `${goal === null || hits === null ? 0 : (hits / total) * 100}%`, backgroundColor: color },
+          ]}
+        />
       </View>
     </View>
   );

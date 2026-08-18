@@ -54,6 +54,11 @@ function ToastBanner({ message, variant }: { message: string; variant: ToastVari
 
   const backgroundColor =
     variant === 'success' ? theme.success : variant === 'error' ? theme.danger : theme.text;
+  // 'success' can render as a bright light-green in dark mode (same swatch as
+  // `primary`), so it needs the same dark-on-bright treatment as onPrimary.
+  // 'info' uses theme.text as its background, so theme.background (its
+  // designed contrast partner) is guaranteed to read clearly on top of it.
+  const textColor = variant === 'success' ? theme.onPrimary : variant === 'error' ? '#ffffff' : theme.background;
   const icon = variant === 'success' ? '✓' : variant === 'error' ? '!' : 'i';
 
   return (
@@ -63,8 +68,8 @@ function ToastBanner({ message, variant }: { message: string; variant: ToastVari
         exiting={FadeOutUp.duration(180)}
         style={[styles.toast, Shadow.raised, { backgroundColor }]}
       >
-        <ThemedText style={styles.icon}>{icon}</ThemedText>
-        <ThemedText type="bodyBold" style={styles.message}>
+        <ThemedText style={[styles.icon, { color: textColor }]}>{icon}</ThemedText>
+        <ThemedText type="bodyBold" style={[styles.message, { color: textColor }]}>
           {message}
         </ThemedText>
       </Animated.View>
@@ -100,10 +105,8 @@ const styles = StyleSheet.create({
     maxWidth: '92%',
   },
   icon: {
-    color: '#ffffff',
     fontWeight: '800',
   },
   message: {
-    color: '#ffffff',
   },
 });

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { Divider } from '@/components/Divider';
+import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { SocialButton } from '@/components/SocialButton';
@@ -10,7 +11,7 @@ import { TextField } from '@/components/TextField';
 import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import { Radius, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
 
@@ -22,14 +23,17 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit() {
     setError(null);
-    if (!email || !password) {
-      setError('Enter your email and password.');
-      return;
-    }
+    const nextEmailError = !email.trim() ? 'Enter your email.' : !/^\S+@\S+\.\S+$/.test(email.trim()) ? 'Enter a valid email address.' : null;
+    const nextPasswordError = !password ? 'Enter your password.' : null;
+    setEmailError(nextEmailError);
+    setPasswordError(nextPasswordError);
+    if (nextEmailError || nextPasswordError) return;
     setLoading(true);
     try {
       await logIn(email.trim(), password);
@@ -67,8 +71,12 @@ export default function LoginScreen() {
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(text) => {
+          setEmail(text);
+          setEmailError(null);
+        }}
         placeholder="you@example.com"
+        error={emailError}
       />
 
       <View>
@@ -84,8 +92,12 @@ export default function LoginScreen() {
           icon="lock-closed-outline"
           secureTextEntry={!showPassword}
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(text) => {
+            setPassword(text);
+            setPasswordError(null);
+          }}
           placeholder="••••••••"
+          error={passwordError}
           rightAccessory={
             <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
               <Icon name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={theme.textSecondary} />
@@ -100,19 +112,9 @@ export default function LoginScreen() {
         </ThemedText>
       ) : null}
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={handleSubmit}
-        disabled={loading}
-        style={({ pressed }) => [
-          styles.primaryButton,
-          { backgroundColor: theme.success, shadowColor: theme.success, opacity: pressed || loading ? 0.85 : 1 },
-        ]}
-      >
-        <ThemedText type="h2" style={styles.primaryButtonLabel}>
-          {loading ? 'Signing in…' : 'Sign In'}
-        </ThemedText>
-      </Pressable>
+      <View style={styles.primaryButton}>
+        <Button title="Sign In" onPress={handleSubmit} loading={loading} variant="accent" />
+      </View>
 
       <Divider label="OR CONTINUE WITH" />
 
@@ -171,17 +173,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.two,
   },
   primaryButton: {
-    minHeight: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Radius.lg,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 4,
-  },
-  primaryButtonLabel: {
-    color: '#002109',
+    marginTop: Spacing.one,
   },
   passwordLabelRow: {
     flexDirection: 'row',

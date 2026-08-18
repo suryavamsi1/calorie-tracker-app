@@ -22,6 +22,7 @@ import { ThemedView } from '@/components/themed-view';
 import { MEAL_TYPES, MEAL_TYPE_LABELS } from '@/constants/options';
 import { MacroColors, MealColors, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useThemeMode } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
 import { useTheme } from '@/hooks/use-theme';
 import { api, ApiError } from '@/lib/api';
@@ -51,6 +52,7 @@ function getMotivation(
 export default function DashboardScreen() {
   const { user } = useAuth();
   const theme = useTheme();
+  const { scheme } = useThemeMode();
   const toast = useToast();
   const [entries, setEntries] = useState<MealEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,9 +155,17 @@ export default function DashboardScreen() {
         {isOffline ? <OfflineBanner /> : null}
 
         {loading ? (
-          <Card>
-            <SkeletonCard />
-          </Card>
+          <>
+            <Card>
+              <SkeletonCard />
+            </Card>
+            <Card>
+              <SkeletonCard />
+            </Card>
+            <Card>
+              <SkeletonCard />
+            </Card>
+          </>
         ) : (
           <>
             <Animated.View entering={FadeInDown.duration(400)}>
@@ -182,14 +192,12 @@ export default function DashboardScreen() {
             <Animated.View entering={FadeInDown.duration(400).delay(100)}>
               <InsightBanner title={insight.title} message={insight.message} tone={insight.tone} />
             </Animated.View>
-          </>
-        )}
 
-        <ThemedText type="h2" style={styles.sectionHeading}>
-          Today&apos;s Meals
-        </ThemedText>
+            <ThemedText type="h2" style={styles.sectionHeading}>
+              Today&apos;s Meals
+            </ThemedText>
 
-        {MEAL_TYPES.map((mealType, index) => {
+            {MEAL_TYPES.map((mealType, index) => {
           const mealEntries = entriesByMeal[mealType];
           const mealTotal = mealEntries.reduce((sum, e) => sum + e.calories, 0);
           const meal = MealColors[mealType];
@@ -199,8 +207,8 @@ export default function DashboardScreen() {
               <Card style={styles.mealCard}>
                 <View style={styles.mealHeader}>
                   <View style={styles.mealTitleRow}>
-                    <View style={[styles.mealIcon, { backgroundColor: theme.backgroundSelected }]}>
-                      <Icon name={meal.icon} size={24} color={theme.text} />
+                    <View style={[styles.mealIcon, { backgroundColor: scheme === 'dark' ? meal.softDark : meal.soft }]}>
+                      <Icon name={meal.icon} size={24} color={meal.tint} />
                     </View>
                     <View>
                       <ThemedText type="h2" style={styles.mealName}>{MEAL_TYPE_LABELS[mealType]}</ThemedText>
@@ -211,10 +219,12 @@ export default function DashboardScreen() {
                   </View>
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel={`Add food to ${MEAL_TYPE_LABELS[mealType].toLowerCase()}`}
                     onPress={() => router.push({ pathname: '/add-food', params: { mealType, date } })}
                     style={[styles.mealAddButton, { backgroundColor: theme.primary }]}
+                    hitSlop={6}
                   >
-                    <Icon name="add" size={20} color="#ffffff" />
+                    <Icon name="add" size={20} color={theme.onPrimary} />
                   </Pressable>
                 </View>
 
@@ -242,6 +252,8 @@ export default function DashboardScreen() {
             </Animated.View>
           );
         })}
+          </>
+        )}
       </ScrollView>
 
       <Fab onPress={() => router.push({ pathname: '/add-food', params: { mealType: guessMealType(), date } })} />
@@ -306,8 +318,8 @@ const styles = StyleSheet.create({
     lineHeight: 28,
   },
   mealAddButton: {
-    width: 32,
-    height: 32,
+    width: 40,
+    height: 40,
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/AppHeader';
@@ -29,19 +29,40 @@ export default function ProfileScreen() {
   const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user?.name ?? '');
+  const [age, setAge] = useState(user?.age ? String(user.age) : '');
+  const [heightCm, setHeightCm] = useState(user?.heightCm ? String(user.heightCm) : '');
   const [weightKg, setWeightKg] = useState(user?.weightKg ? String(user.weightKg) : '');
   const [goal, setGoal] = useState(user?.dailyCalorieGoal ? String(user.dailyCalorieGoal) : '');
   const [goalEditedManually, setGoalEditedManually] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ageError, setAgeError] = useState<string | null>(null);
+  const [heightError, setHeightError] = useState<string | null>(null);
+  const [weightError, setWeightError] = useState<string | null>(null);
+  const [goalError, setGoalError] = useState<string | null>(null);
 
   async function handleSave() {
     setError(null);
+    const ageNum = age ? Number(age) : null;
+    const nextAgeError = age && (!Number.isFinite(ageNum) || (ageNum as number) < 13 || (ageNum as number) > 100) ? 'Enter an age between 13 and 100.' : null;
+    const heightNum = heightCm ? Number(heightCm) : null;
+    const nextHeightError = heightCm && (!Number.isFinite(heightNum) || (heightNum as number) < 100 || (heightNum as number) > 250) ? 'Enter a height between 100 and 250 cm.' : null;
+    const weightNum = weightKg ? Number(weightKg) : null;
+    const nextWeightError = weightKg && (!Number.isFinite(weightNum) || (weightNum as number) <= 0) ? 'Enter a valid weight.' : null;
+    const goalNum = goal ? Number(goal) : null;
+    const nextGoalError = goal && (!Number.isFinite(goalNum) || (goalNum as number) < 800) ? 'Enter a valid calorie goal.' : null;
+    setAgeError(nextAgeError);
+    setHeightError(nextHeightError);
+    setWeightError(nextWeightError);
+    setGoalError(nextGoalError);
+    if (nextAgeError || nextHeightError || nextWeightError || nextGoalError) return;
     setSaving(true);
     try {
       const newWeightKg = weightKg ? Number(weightKg) : undefined;
       const { user: updated } = await api.put<{ user: User }>('/me', {
         name: name.trim() || undefined,
+        age: age ? Number(age) : undefined,
+        heightCm: heightCm ? Number(heightCm) : undefined,
         weightKg: newWeightKg,
       });
 
@@ -107,17 +128,24 @@ export default function ProfileScreen() {
         <AppHeader title="Profile" />
       </SafeAreaView>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.header}>
           <View>
             <View style={[styles.avatar, { backgroundColor: theme.primarySoft }]}>
               <ThemedText type="display" themeColor="primary" style={styles.avatarInitial}>
                 {(user.name ?? user.email).charAt(0).toUpperCase()}
               </ThemedText>
             </View>
-            <View style={[styles.avatarBadge, { backgroundColor: theme.primary }]}>
-              <Icon name="pencil" size={14} color="#ffffff" />
-            </View>
+            <Pressable
+              onPress={() => toast.show('Coming soon')}
+              style={[styles.avatarBadge, { backgroundColor: theme.primary }]}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Change profile photo"
+            >
+              <Icon name="pencil" size={14} color={theme.onPrimary} />
+            </Pressable>
           </View>
           <ThemedText type="h1">{user.name ?? 'Your profile'}</ThemedText>
           <ThemedText type="body" themeColor="textSecondary">
@@ -132,13 +160,22 @@ export default function ProfileScreen() {
               onPress={() => {
                 if (!editing) {
                   setName(user.name ?? '');
+                  setAge(user.age ? String(user.age) : '');
+                  setHeightCm(user.heightCm ? String(user.heightCm) : '');
                   setWeightKg(user.weightKg ? String(user.weightKg) : '');
                   setGoal(user.dailyCalorieGoal ? String(user.dailyCalorieGoal) : '');
                   setGoalEditedManually(false);
+                  setAgeError(null);
+                  setHeightError(null);
+                  setWeightError(null);
+                  setGoalError(null);
+                  setError(null);
                 }
                 setEditing((v) => !v);
               }}
-              hitSlop={8}
+              hitSlop={13}
+              accessibilityRole="button"
+              accessibilityLabel={editing ? 'Close edit form' : 'Edit health profile'}
             >
               <Icon name={editing ? 'close' : 'pencil'} size={18} color={theme.textSecondary} />
             </Pressable>
@@ -147,7 +184,36 @@ export default function ProfileScreen() {
           {editing ? (
             <View style={styles.form}>
               <TextField label="Name" value={name} onChangeText={setName} />
-              <TextField label="Weight (kg)" keyboardType="decimal-pad" value={weightKg} onChangeText={setWeightKg} />
+              <TextField
+                label="Age"
+                keyboardType="number-pad"
+                value={age}
+                onChangeText={(text) => {
+                  setAge(text);
+                  setAgeError(null);
+                }}
+                error={ageError}
+              />
+              <TextField
+                label="Height (cm)"
+                keyboardType="decimal-pad"
+                value={heightCm}
+                onChangeText={(text) => {
+                  setHeightCm(text);
+                  setHeightError(null);
+                }}
+                error={heightError}
+              />
+              <TextField
+                label="Weight (kg)"
+                keyboardType="decimal-pad"
+                value={weightKg}
+                onChangeText={(text) => {
+                  setWeightKg(text);
+                  setWeightError(null);
+                }}
+                error={weightError}
+              />
               <TextField
                 label="Daily calorie goal"
                 keyboardType="number-pad"
@@ -155,7 +221,9 @@ export default function ProfileScreen() {
                 onChangeText={(text) => {
                   setGoal(text);
                   setGoalEditedManually(true);
+                  setGoalError(null);
                 }}
+                error={goalError}
               />
               {error ? (
                 <ThemedText themeColor="danger" type="caption">
@@ -168,6 +236,10 @@ export default function ProfileScreen() {
                 variant="ghost"
                 onPress={() => {
                   setGoalEditedManually(false);
+                  setAgeError(null);
+                  setHeightError(null);
+                  setWeightError(null);
+                  setGoalError(null);
                   setEditing(false);
                 }}
               />
@@ -206,18 +278,28 @@ export default function ProfileScreen() {
         </Card>
 
         {activity ? (
-          <Card style={styles.activityCard}>
-            <View style={[styles.activityIcon, { backgroundColor: theme.backgroundElement }]}>
-              <Icon name="walk" size={18} color={theme.primary} />
-            </View>
-            <View style={styles.flexOne}>
-              <ThemedText type="bodyBold">{activity.label}</ThemedText>
-              <ThemedText type="caption" themeColor="textSecondary">
-                {activity.description}
-              </ThemedText>
-            </View>
-            <Icon name="pencil" size={18} color={theme.textSecondary} />
-          </Card>
+          <View>
+            <ThemedText type="h3" style={styles.activityHeading}>Activity Level</ThemedText>
+            <Card style={styles.activityCard}>
+              <View style={[styles.activityIcon, { backgroundColor: theme.backgroundElement }]}>
+                <Icon name="walk" size={18} color={theme.primary} />
+              </View>
+              <View style={styles.flexOne}>
+                <ThemedText type="bodyBold">{activity.label}</ThemedText>
+                <ThemedText type="caption" themeColor="textSecondary">
+                  {activity.description}
+                </ThemedText>
+              </View>
+              <Pressable
+                onPress={() => toast.show('Coming soon')}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Edit activity level"
+              >
+                <Icon name="pencil" size={18} color={theme.textSecondary} />
+              </Pressable>
+            </Card>
+          </View>
         ) : null}
 
         <Card>
@@ -245,20 +327,23 @@ export default function ProfileScreen() {
         <Button title="Log out" variant="secondary" onPress={handleLogout} />
 
         <DeleteAccountSection />
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ThemedView>
   );
 }
 
 function MacroBarTile({ label, valueG, color }: { label: string; valueG: number | null; color: string }) {
   const theme = useTheme();
-  const pct = valueG ? Math.min(1, Math.max(0.1, valueG / 250)) : 0.05;
+  const pct = valueG ? Math.min(1, Math.max(0.1, valueG / 250)) : 0;
   return (
     <View style={styles.macroBarTile}>
       <View style={[styles.macroBarTrack, { backgroundColor: theme.backgroundSelected }]}>
-        <View style={[styles.macroBarFill, { height: `${pct * 100}%`, backgroundColor: color }]} />
+        {valueG ? <View style={[styles.macroBarFill, { height: `${pct * 100}%`, backgroundColor: color }]} /> : null}
       </View>
-      <ThemedText type="smallBold">{valueG ? `${valueG}g` : '—'}</ThemedText>
+      <ThemedText type="smallBold" themeColor={valueG ? undefined : 'textTertiary'}>
+        {valueG ? `${valueG}g` : 'Not set'}
+      </ThemedText>
       <ThemedText type="overline" themeColor="textSecondary">
         {label}
       </ThemedText>
@@ -322,7 +407,16 @@ function ChangePasswordSection() {
 
   return (
     <View>
-      <ListRow icon="lock-closed" label="Change Password" onPress={() => setOpen((v) => !v)} />
+      <ListRow
+        icon="lock-closed"
+        label="Change Password"
+        onPress={() => {
+          setCurrentPassword('');
+          setNewPassword('');
+          setError(null);
+          setOpen((v) => !v);
+        }}
+      />
       {open ? (
         <View style={styles.form}>
           <TextField
@@ -338,7 +432,16 @@ function ChangePasswordSection() {
             </ThemedText>
           ) : null}
           <Button title="Update password" onPress={handleChangePassword} loading={saving} />
-          <Button title="Cancel" variant="ghost" onPress={() => setOpen(false)} />
+          <Button
+            title="Cancel"
+            variant="ghost"
+            onPress={() => {
+              setCurrentPassword('');
+              setNewPassword('');
+              setError(null);
+              setOpen(false);
+            }}
+          />
         </View>
       ) : null}
     </View>
@@ -347,6 +450,7 @@ function ChangePasswordSection() {
 
 function DeleteAccountSection() {
   const { logOut } = useAuth();
+  const toast = useToast();
   const [deleting, setDeleting] = useState(false);
 
   async function performDelete() {
@@ -355,6 +459,8 @@ function DeleteAccountSection() {
       await api.delete('/me');
       await logOut();
       router.replace('/welcome');
+    } catch {
+      toast.show("Couldn't delete account. Check your connection.", 'error');
     } finally {
       setDeleting(false);
     }
@@ -471,6 +577,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  activityHeading: {
+    marginBottom: Spacing.one,
   },
   activityIcon: {
     width: 36,

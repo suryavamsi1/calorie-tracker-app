@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 
 import { ThemedView } from '@/components/themed-view';
@@ -19,29 +19,47 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
 
   return (
     <Modal transparent animationType="none" visible onRequestClose={onClose}>
-      <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(150)} style={styles.backdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <Animated.View entering={SlideInDown.duration(280)} exiting={SlideOutDown.duration(200)}>
-          <ThemedView type="surface" style={[styles.sheet, Shadow.raised]}>
-            <View style={[styles.handle, { backgroundColor: theme.border }]} />
-            {children}
-          </ThemedView>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(150)} style={[styles.backdrop, { backgroundColor: theme.overlay }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+          <Animated.View entering={SlideInDown.duration(280)} exiting={SlideOutDown.duration(200)} style={styles.sheetWrap}>
+            <ThemedView type="surface" style={[styles.sheet, Shadow.raised]}>
+              <View style={[styles.handle, { backgroundColor: theme.border }]} />
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.content}
+              >
+                {children}
+              </ScrollView>
+            </ThemedView>
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(11,18,32,0.45)',
     justifyContent: 'flex-end',
+  },
+  sheetWrap: {
+    maxHeight: '90%',
   },
   sheet: {
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
     padding: Spacing.three + 4,
+  },
+  content: {
     gap: Spacing.two,
   },
   handle: {

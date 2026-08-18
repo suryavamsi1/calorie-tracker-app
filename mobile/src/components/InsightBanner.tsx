@@ -10,7 +10,7 @@ export interface InsightBannerProps {
   icon?: IconName;
   title: string;
   message: string;
-  tone?: 'success' | 'warning' | 'danger';
+  tone?: 'success' | 'warning' | 'danger' | 'info';
 }
 
 /** Callout used for the dashboard's daily nudge (e.g. "Almost there!"). */
@@ -42,8 +42,8 @@ export function InsightBanner({ icon = 'flash', title, message, tone = 'success'
     );
   }
 
-  const backgroundColor = tone === 'danger' ? theme.dangerSoft : theme.warningSoft;
-  const accent = tone === 'danger' ? theme.danger : theme.warning;
+  const backgroundColor = tone === 'danger' ? theme.dangerSoft : tone === 'warning' ? theme.warningSoft : theme.secondarySoft;
+  const accent = tone === 'danger' ? theme.danger : tone === 'warning' ? theme.warning : theme.secondary;
 
   return (
     <View style={[styles.container, { backgroundColor }]}>

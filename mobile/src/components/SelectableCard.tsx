@@ -45,7 +45,7 @@ export function SelectableCard({ icon, title, description, selected, onPress }: 
           { borderColor: selected ? theme.primary : theme.border, backgroundColor: selected ? theme.primary : 'transparent' },
         ]}
       >
-        {selected ? <Icon name="checkmark" size={14} color="#ffffff" /> : null}
+        {selected ? <Icon name="checkmark" size={14} color={theme.onPrimary} /> : null}
       </View>
     </Pressable>
   );

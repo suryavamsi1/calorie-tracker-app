@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/AppHeader';
@@ -51,9 +51,19 @@ export default function AddFoodScreen() {
           <Chip label="Custom food" selected={mode === 'custom'} onPress={() => setMode('custom')} size="sm" />
         </View>
 
-        {mode === 'search' && <SearchTab mealType={mealType} onMealTypeChange={setMealType} date={date} entryId={entryId} />}
-        {mode === 'quick' && <QuickAddTab mealType={mealType} date={date} entryId={entryId} />}
-        {mode === 'custom' && <CustomFoodTab mealType={mealType} date={date} entryId={entryId} />}
+        {mode === 'search' ? (
+          <SearchTab mealType={mealType} onMealTypeChange={setMealType} date={date} entryId={entryId} />
+        ) : (
+          <KeyboardAvoidingView
+            style={styles.flex}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.formScroll}>
+              {mode === 'quick' && <QuickAddTab mealType={mealType} date={date} entryId={entryId} />}
+              {mode === 'custom' && <CustomFoodTab mealType={mealType} date={date} entryId={entryId} />}
+            </ScrollView>
+          </KeyboardAvoidingView>
+        )}
       </View>
 
       <BottomNavBar active="log" />
@@ -106,7 +116,9 @@ function SearchTab({
   const [recentFoods, setRecentFoods] = useState<Food[]>([]);
   const [favoriteFoods, setFavoriteFoods] = useState<Food[]>([]);
   const [browseTab, setBrowseTab] = useState<'recent' | 'favorites'>('recent');
+  const [browseError, setBrowseError] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState(false);
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [quantity, setQuantity] = useState('1');
   const [saving, setSaving] = useState(false);
@@ -114,12 +126,24 @@ function SearchTab({
   function loadRecentAndFavorites() {
     api
       .get<{ foods: Food[] }>('/foods/recent')
-      .then(({ foods }) => setRecentFoods(foods))
-      .catch(() => setRecentFoods([]));
+      .then(({ foods }) => {
+        setRecentFoods(foods);
+        setBrowseError(false);
+      })
+      .catch(() => {
+        setRecentFoods([]);
+        setBrowseError(true);
+      });
     api
       .get<{ foods: Food[] }>('/foods/favorites')
-      .then(({ foods }) => setFavoriteFoods(foods))
-      .catch(() => setFavoriteFoods([]));
+      .then(({ foods }) => {
+        setFavoriteFoods(foods);
+        setBrowseError(false);
+      })
+      .catch(() => {
+        setFavoriteFoods([]);
+        setBrowseError(true);
+      });
   }
 
   useEffect(() => {
@@ -129,6 +153,7 @@ function SearchTab({
   useEffect(() => {
     if (!query) {
       setResults([]);
+      setSearchError(false);
       return;
     }
     setSearching(true);
@@ -136,7 +161,11 @@ function SearchTab({
       try {
         const { foods } = await api.get<{ foods: Food[] }>(`/foods?query=${encodeURIComponent(query)}`);
         setResults(foods);
+        setSearchError(false);
         track('search_performed', { resultCount: foods.length });
+      } catch {
+        setResults([]);
+        setSearchError(true);
       } finally {
         setSearching(false);
       }
@@ -145,6 +174,10 @@ function SearchTab({
   }, [query]);
 
   async function logFood(food: Food, qty: number) {
+    if (!qty || qty <= 0) {
+      toast.show('Enter a valid quantity', 'error');
+      return;
+    }
     setSaving(true);
     try {
       if (entryId) {
@@ -156,6 +189,8 @@ function SearchTab({
         track('food_logged', { method: 'search', mealType });
       }
       router.back();
+    } catch {
+      toast.show("Couldn't save this entry. Check your connection.", 'error');
     } finally {
       setSaving(false);
     }
@@ -272,11 +307,25 @@ function SearchTab({
           )
         }
         ListEmptyComponent={
-          query && !searching ? (
+          query && !searching && searchError ? (
+            <EmptyState
+              icon="alert-circle-outline"
+              title="Couldn't search right now"
+              subtitle="Check your connection and try again."
+            />
+          ) : query && !searching ? (
             <EmptyState
               icon="search-outline"
               title="No matches"
               subtitle="Try quick add or create a custom food instead."
+            />
+          ) : !query && browseError ? (
+            <EmptyState
+              icon="alert-circle-outline"
+              title="Couldn't load foods"
+              subtitle="Check your connection and try again."
+              actionLabel="Retry"
+              onAction={loadRecentAndFavorites}
             />
           ) : !query && browseTab === 'recent' && recentFoods.length === 0 ? (
             <EmptyState
@@ -338,7 +387,7 @@ function FoodDetailView({
   }
 
   return (
-    <View style={styles.detailContainer}>
+    <ScrollView style={styles.flex} contentContainerStyle={styles.detailContainer} keyboardShouldPersistTaps="handled">
       <Card style={styles.detailHeaderCard}>
         <View style={[styles.detailIconTile, { backgroundColor: theme.backgroundElement }]}>
           <Icon name="restaurant-outline" size={28} color={theme.primary} />
@@ -413,8 +462,8 @@ function FoodDetailView({
                   { backgroundColor: selected ? theme.primary : theme.backgroundElement },
                 ]}
               >
-                <Icon name={MEAL_TYPE_ICONS[type]} size={20} color={selected ? '#ffffff' : theme.textSecondary} />
-                <ThemedText type="small" style={{ color: selected ? '#ffffff' : theme.text }}>
+                <Icon name={MEAL_TYPE_ICONS[type]} size={20} color={selected ? theme.onPrimary : theme.textSecondary} />
+                <ThemedText type="small" style={{ color: selected ? theme.onPrimary : theme.text }}>
                   {MEAL_TYPE_LABELS[type]}
                 </ThemedText>
               </Pressable>
@@ -429,7 +478,7 @@ function FoodDetailView({
         loading={saving}
       />
       <Button title="Back to search" variant="ghost" onPress={onBack} />
-    </View>
+    </ScrollView>
   );
 }
 
@@ -441,7 +490,10 @@ function QuickAddTab({ mealType, date, entryId }: { mealType: MealType; date: st
 
   async function handleSave() {
     const cals = Number(calories);
-    if (!cals) return;
+    if (!cals || cals <= 0) {
+      toast.show('Enter how many calories this is', 'error');
+      return;
+    }
     setSaving(true);
     try {
       if (entryId) {
@@ -464,6 +516,8 @@ function QuickAddTab({ mealType, date, entryId }: { mealType: MealType; date: st
         track('food_logged', { method: 'quick_add', mealType });
       }
       router.back();
+    } catch {
+      toast.show("Couldn't save this entry. Check your connection.", 'error');
     } finally {
       setSaving(false);
     }
@@ -493,7 +547,14 @@ function CustomFoodTab({ mealType, date, entryId }: { mealType: MealType; date: 
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
-    if (!name.trim() || !Number(calories)) return;
+    if (!name.trim()) {
+      toast.show('Enter a food name', 'error');
+      return;
+    }
+    if (!Number(calories) || Number(calories) <= 0) {
+      toast.show('Enter calories per serving', 'error');
+      return;
+    }
     setSaving(true);
     try {
       const { food } = await api.post<{ food: Food }>('/foods/custom', {
@@ -514,6 +575,8 @@ function CustomFoodTab({ mealType, date, entryId }: { mealType: MealType; date: 
         track('food_logged', { method: 'custom', mealType });
       }
       router.back();
+    } catch {
+      toast.show("Couldn't save this food. Check your connection.", 'error');
     } finally {
       setSaving(false);
     }
@@ -555,6 +618,9 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: Spacing.three,
   },
+  formScroll: {
+    flexGrow: 1,
+  },
   mealSelectorRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -595,7 +661,7 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   detailContainer: {
-    flex: 1,
+    flexGrow: 1,
     gap: Spacing.three,
   },
   detailHeaderCard: {

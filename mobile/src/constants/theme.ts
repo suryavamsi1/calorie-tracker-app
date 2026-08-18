@@ -17,12 +17,14 @@ export const Colors = {
     backgroundSelected: '#E5EEFF',
     primary: '#006E2F',
     primarySoft: '#DCFCE7',
+    onPrimary: '#FFFFFF',
     accent: '#FBBF24',
     accentSoft: '#FEF3C7',
     secondary: '#0058BE',
     secondarySoft: '#E5EEFF',
     danger: '#BA1A1A',
     dangerSoft: '#FFDAD6',
+    onDangerSoft: '#BA1A1A',
     success: '#22C55E',
     successSoft: '#DCFCE7',
     warning: '#855300',
@@ -40,12 +42,14 @@ export const Colors = {
     backgroundSelected: '#1F2A3C',
     primary: '#4BE277',
     primarySoft: '#123320',
+    onPrimary: '#003915',
     accent: '#FBBF24',
     accentSoft: '#3A2E14',
     secondary: '#3B82F6',
     secondarySoft: '#16283F',
     danger: '#E5484D',
     dangerSoft: '#5C1A1A',
+    onDangerSoft: '#FFB4AB',
     success: '#4BE277',
     successSoft: '#123320',
     warning: '#FBBF24',
@@ -87,7 +91,9 @@ export const Radius = {
 export const Shadow = {
   card: Platform.select({
     ios: {
-      shadowColor: '#0B1C30',
+      // Pure black (not a light-mode-tinted navy) so this shadow reads
+      // correctly regardless of the active theme.
+      shadowColor: '#000000',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.06,
       shadowRadius: 20,
@@ -97,7 +103,7 @@ export const Shadow = {
   }),
   raised: Platform.select({
     ios: {
-      shadowColor: '#0B1C30',
+      shadowColor: '#000000',
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.14,
       shadowRadius: 28,

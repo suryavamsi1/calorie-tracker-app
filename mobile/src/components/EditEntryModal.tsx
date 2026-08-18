@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
@@ -8,6 +8,7 @@ import { QuantityStepper } from '@/components/QuantityStepper';
 import { TextField } from '@/components/TextField';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { useToast } from '@/context/ToastContext';
 import type { MealEntry } from '@/types';
 
 export interface EntryUpdates {
@@ -26,6 +27,7 @@ export interface EditEntryModalProps {
 }
 
 export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood }: EditEntryModalProps) {
+  const toast = useToast();
   const [quantity, setQuantity] = useState('1');
   const [customName, setCustomName] = useState('');
   const [customCalories, setCustomCalories] = useState('');
@@ -54,8 +56,18 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood
 
   async function handleSave() {
     const parsed = Number(quantity);
-    if (!parsed || parsed <= 0) return;
-    if (isCustom && (!customName.trim() || !Number(customCalories))) return;
+    if (!parsed || parsed <= 0) {
+      toast.show('Enter a valid quantity', 'error');
+      return;
+    }
+    if (isCustom && !customName.trim()) {
+      toast.show('Enter a food name', 'error');
+      return;
+    }
+    if (isCustom && !Number(customCalories)) {
+      toast.show('Enter calories per serving', 'error');
+      return;
+    }
 
     setBusy(true);
     try {
@@ -65,6 +77,8 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood
           ? { customFoodName: customName.trim(), customCalories: Number(customCalories) }
           : {}),
       });
+    } catch {
+      toast.show("Couldn't save changes. Check your connection.", 'error');
     } finally {
       setBusy(false);
     }
@@ -74,9 +88,18 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood
     setBusy(true);
     try {
       await onDelete();
+    } catch {
+      toast.show("Couldn't delete entry. Check your connection.", 'error');
     } finally {
       setBusy(false);
     }
+  }
+
+  function confirmDelete() {
+    Alert.alert('Delete entry?', 'This removes the entry from your log. This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: handleDelete },
+    ]);
   }
 
   return (
@@ -128,7 +151,7 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood
             ) : null}
 
             <Button title="Save changes" onPress={handleSave} loading={busy} />
-            <Button title="Delete entry" variant="danger" onPress={handleDelete} loading={busy} />
+            <Button title="Delete entry" variant="danger" onPress={confirmDelete} loading={busy} />
             <Button title="Cancel" variant="ghost" onPress={onClose} />
     </BottomSheet>
   );

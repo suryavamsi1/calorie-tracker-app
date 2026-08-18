@@ -6,7 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'dangerSoft' | 'ghost';
+export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'dangerSoft' | 'ghost' | 'accent';
 export type ButtonSize = 'md' | 'sm';
 
 export interface ButtonProps extends Omit<PressableProps, 'style'> {
@@ -17,6 +17,11 @@ export interface ButtonProps extends Omit<PressableProps, 'style'> {
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// Mockup's auth-screen CTA uses fixed (non-theme-adaptive) brand colors -
+// literally the same hex in both the light and dark Stitch source files.
+const ACCENT_BACKGROUND = '#22C55E';
+const ACCENT_TEXT = '#002109';
 
 export function Button({
   title,
@@ -53,20 +58,26 @@ export function Button({
   const backgroundColor =
     variant === 'primary'
       ? theme.primary
-      : variant === 'danger'
-        ? theme.danger
-        : variant === 'dangerSoft'
-          ? theme.dangerSoft
-          : variant === 'secondary'
-            ? theme.backgroundElement
-            : 'transparent';
+      : variant === 'accent'
+        ? ACCENT_BACKGROUND
+        : variant === 'danger'
+          ? theme.danger
+          : variant === 'dangerSoft'
+            ? theme.dangerSoft
+            : variant === 'secondary'
+              ? theme.backgroundElement
+              : 'transparent';
 
   const textColor =
-    variant === 'primary' || variant === 'danger'
-      ? '#ffffff'
-      : variant === 'dangerSoft'
-        ? theme.danger
-        : theme.text;
+    variant === 'primary'
+      ? theme.onPrimary
+      : variant === 'accent'
+        ? ACCENT_TEXT
+        : variant === 'danger'
+          ? '#ffffff'
+          : variant === 'dangerSoft'
+            ? theme.onDangerSoft
+            : theme.text;
 
   return (
     <AnimatedPressable
@@ -100,10 +111,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 52,
   },
   buttonSm: {
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
     borderRadius: Radius.sm,
+    minHeight: 44,
   },
 });

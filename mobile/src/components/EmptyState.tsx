@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
+import { Button } from '@/components/Button';
 import { Icon, type IconName } from '@/components/Icon';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -10,9 +11,11 @@ export interface EmptyStateProps {
   title: string;
   subtitle?: string;
   compact?: boolean;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
-export function EmptyState({ icon = 'restaurant-outline', title, subtitle, compact }: EmptyStateProps) {
+export function EmptyState({ icon = 'restaurant-outline', title, subtitle, compact, actionLabel, onAction }: EmptyStateProps) {
   const theme = useTheme();
   return (
     <View style={[styles.container, compact && styles.compact]}>
@@ -24,6 +27,11 @@ export function EmptyState({ icon = 'restaurant-outline', title, subtitle, compa
         <ThemedText type="caption" themeColor="textSecondary" style={styles.subtitle}>
           {subtitle}
         </ThemedText>
+      ) : null}
+      {actionLabel && onAction ? (
+        <View style={styles.action}>
+          <Button title={actionLabel} size="sm" variant="secondary" onPress={onAction} />
+        </View>
       ) : null}
     </View>
   );
@@ -44,5 +52,8 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     textAlign: 'center',
+  },
+  action: {
+    marginTop: Spacing.two,
   },
 });

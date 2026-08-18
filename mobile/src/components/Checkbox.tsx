@@ -27,7 +27,7 @@ export function Checkbox({ checked, onChange, children }: CheckboxProps) {
           { backgroundColor: checked ? theme.primary : theme.backgroundSelected },
         ]}
       >
-        {checked ? <Icon name="checkmark" size={16} color="#ffffff" /> : null}
+        {checked ? <Icon name="checkmark" size={16} color={theme.onPrimary} /> : null}
       </View>
       {children ? <View style={styles.label}>{children}</View> : null}
     </Pressable>

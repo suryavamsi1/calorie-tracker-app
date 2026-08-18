@@ -57,6 +57,10 @@ export default function OnboardingScreen() {
   const [targetWeightKg, setTargetWeightKg] = useState('');
   const [goalOverride, setGoalOverride] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [ageError, setAgeError] = useState<string | null>(null);
+  const [sexError, setSexError] = useState<string | null>(null);
+  const [heightError, setHeightError] = useState<string | null>(null);
+  const [weightError, setWeightError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const canComputeGoal = Boolean(age && sex && heightCm && weightKg && activityLevel && goalType);
@@ -85,8 +89,19 @@ export default function OnboardingScreen() {
   function goNext() {
     setError(null);
     if (step === 1) {
-      if (!age || !sex || !heightCm || !weightKg) {
-        setError('Please fill in all fields to continue.');
+      const ageNum = Number(age);
+      const heightNum = Number(heightCm);
+      const weightNum = Number(weightKg);
+      const nextAgeError = !age ? 'Enter your age.' : !Number.isFinite(ageNum) || ageNum < 13 || ageNum > 100 ? 'Enter an age between 13 and 100.' : null;
+      const nextSexError = !sex ? 'Select your sex.' : null;
+      const nextHeightError = !heightCm ? 'Enter your height.' : !Number.isFinite(heightNum) || heightNum < 100 || heightNum > 250 ? 'Enter a height between 100 and 250 cm.' : null;
+      const nextWeightError = !weightKg ? 'Enter your weight.' : !Number.isFinite(weightNum) || weightNum < 20 || weightNum > 300 ? 'Enter a weight between 20 and 300 kg.' : null;
+      setAgeError(nextAgeError);
+      setSexError(nextSexError);
+      setHeightError(nextHeightError);
+      setWeightError(nextWeightError);
+      if (nextAgeError || nextSexError || nextHeightError || nextWeightError) {
+        setError('Please fix the highlighted fields to continue.');
         return;
       }
       setStep(2);
@@ -168,7 +183,7 @@ export default function OnboardingScreen() {
                   </ThemedText>
                   <ThemedText type="h3">{breakdown.maintenance.toLocaleString()}</ThemedText>
                 </View>
-                <View style={styles.maintenanceDivider} />
+                <View style={[styles.maintenanceDivider, { backgroundColor: theme.border }]} />
                 <View style={styles.maintenanceItem}>
                   <ThemedText type="overline" themeColor="textSecondary">
                     Est. Weekly Change
@@ -194,7 +209,12 @@ export default function OnboardingScreen() {
               />
             </View>
             {isEdited && suggestedGoal !== null ? (
-              <Pressable onPress={() => setGoalOverride(String(suggestedGoal))}>
+              <Pressable
+                onPress={() => setGoalOverride(String(suggestedGoal))}
+                hitSlop={8}
+                accessibilityRole="button"
+                style={styles.resetButton}
+              >
                 <ThemedText type="caption" themeColor="primary">
                   Reset to recommended ({suggestedGoal})
                 </ThemedText>
@@ -231,6 +251,7 @@ export default function OnboardingScreen() {
             icon="flask-outline"
             title="Why this works"
             message="We estimate your maintenance calories (TDEE) from the Mifflin-St Jeor equation and your activity level, then apply a moderate 500 kcal/day deficit or surplus so your daily target - not your maintenance number - is what you actually eat toward your goal."
+            tone="info"
           />
 
           {error ? (
@@ -256,7 +277,7 @@ export default function OnboardingScreen() {
             We&apos;ll tailor your calorie and macro targets based on your selection.
           </ThemedText>
 
-          <View style={styles.stack}>
+          <View style={[styles.stack, !goalType && error ? [styles.stackError, { borderColor: theme.danger }] : null]}>
             {GOAL_TYPE_OPTIONS.map((opt) => (
               <SelectableCard
                 key={opt.value}
@@ -306,7 +327,7 @@ export default function OnboardingScreen() {
             This helps us estimate your daily energy expenditure.
           </ThemedText>
 
-          <View style={styles.stack}>
+          <View style={[styles.stack, !activityLevel && error ? [styles.stackError, { borderColor: theme.danger }] : null]}>
             {ACTIVITY_LEVEL_OPTIONS.map((opt) => (
               <SelectableCard
                 key={opt.value}
@@ -341,7 +362,17 @@ export default function OnboardingScreen() {
           We&apos;ll use this to suggest a daily calorie target.
         </ThemedText>
 
-        <TextField label="Age" keyboardType="number-pad" value={age} onChangeText={setAge} placeholder="30" />
+        <TextField
+          label="Age"
+          keyboardType="number-pad"
+          value={age}
+          onChangeText={(text) => {
+            setAge(text);
+            setAgeError(null);
+          }}
+          placeholder="30"
+          error={ageError}
+        />
 
         <View style={styles.field}>
           <ThemedText type="bodyBold">Sex</ThemedText>
@@ -351,23 +382,39 @@ export default function OnboardingScreen() {
               { value: 'female', label: 'Female' },
             ]}
             value={sex}
-            onChange={setSex}
+            onChange={(value) => {
+              setSex(value);
+              setSexError(null);
+            }}
           />
+          {sexError ? (
+            <ThemedText type="small" themeColor="danger">
+              {sexError}
+            </ThemedText>
+          ) : null}
         </View>
 
         <TextField
           label="Height (cm)"
           keyboardType="decimal-pad"
           value={heightCm}
-          onChangeText={setHeightCm}
+          onChangeText={(text) => {
+            setHeightCm(text);
+            setHeightError(null);
+          }}
           placeholder="175"
+          error={heightError}
         />
         <TextField
           label="Weight (kg)"
           keyboardType="decimal-pad"
           value={weightKg}
-          onChangeText={setWeightKg}
+          onChangeText={(text) => {
+            setWeightKg(text);
+            setWeightError(null);
+          }}
           placeholder="75"
+          error={weightError}
         />
 
         {error ? (
@@ -415,6 +462,11 @@ const styles = StyleSheet.create({
   stack: {
     gap: Spacing.two,
   },
+  stackError: {
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    padding: Spacing.two,
+  },
   goalCard: {
     alignItems: 'center',
   },
@@ -432,7 +484,6 @@ const styles = StyleSheet.create({
   maintenanceDivider: {
     width: StyleSheet.hairlineWidth,
     height: 32,
-    backgroundColor: 'rgba(128,128,128,0.3)',
   },
   goalInputWrapper: {
     width: '100%',
@@ -446,6 +497,10 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     paddingVertical: Spacing.half,
     paddingHorizontal: Spacing.three,
+  },
+  resetButton: {
+    paddingVertical: Spacing.one,
+    alignSelf: 'flex-start',
   },
   macroHeading: {
     marginTop: Spacing.three,

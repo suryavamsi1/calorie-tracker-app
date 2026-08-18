@@ -8,6 +8,7 @@ import { AppHeader } from '@/components/AppHeader';
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
 import { MacroConsistencyCard, WeekStrip, WeightTrendCard } from '@/components/HistoryInsights';
+import { Icon } from '@/components/Icon';
 import { MacroLine } from '@/components/MacroLine';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProgressBar } from '@/components/ProgressBar';
@@ -15,6 +16,7 @@ import { SkeletonCard } from '@/components/Skeleton';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
 import { getCache, setCache } from '@/lib/cache';
@@ -22,6 +24,7 @@ import { formatDisplayDate } from '@/lib/date';
 import type { HistoryDay } from '@/types';
 export default function HistoryScreen() {
   const theme = useTheme();
+  const { user } = useAuth();
   const [days, setDays] = useState<HistoryDay[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -37,8 +40,12 @@ export default function HistoryScreen() {
       const cached = await getCache<HistoryDay[]>('history');
       if (cached) {
         setDays(cached);
-        setIsOffline(true);
       }
+      // Always surface the offline/error banner on failure, even without a
+      // cache to fall back to - otherwise an empty `days` list renders the
+      // "No days logged yet" empty state, which looks like a real (and
+      // misleading) "you have no history" result rather than a fetch error.
+      setIsOffline(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -90,7 +97,12 @@ export default function HistoryScreen() {
             <View style={styles.insights}>
               <WeekStrip />
               <WeightTrendCard />
-              <MacroConsistencyCard days={days} />
+              <MacroConsistencyCard
+                days={days}
+                proteinGoalG={user?.dailyProteinGoal ?? null}
+                carbsGoalG={user?.dailyCarbsGoal ?? null}
+                fatGoalG={user?.dailyFatGoal ?? null}
+              />
               <ThemedText type="h3">Daily History</ThemedText>
             </View>
           }
@@ -123,11 +135,14 @@ function HistoryDayCard({
   const statusColor = day.overGoal ? theme.danger : theme.success;
   const progress = day.calorieGoal ? Math.min(day.totalCalories / day.calorieGoal, 1) : 0;
 
-  let trend: { label: string; color: string } | null = null;
+  let trend: { label: string; color: string; icon: 'caret-up' | 'caret-down' } | null = null;
   if (previousDay) {
     const diff = day.totalCalories - previousDay.totalCalories;
     if (Math.abs(diff) >= 10) {
-      trend = diff > 0 ? { label: `▲ ${diff} vs prev. day`, color: theme.warning } : { label: `▼ ${Math.abs(diff)} vs prev. day`, color: theme.success };
+      trend =
+        diff > 0
+          ? { label: `${diff} vs prev. day`, color: theme.warning, icon: 'caret-up' }
+          : { label: `${Math.abs(diff)} vs prev. day`, color: theme.success, icon: 'caret-down' };
     }
   }
 
@@ -153,9 +168,12 @@ function HistoryDayCard({
                       {day.overGoal ? 'Over goal' : 'Within goal'} · Goal {day.calorieGoal}
                     </ThemedText>
                     {trend ? (
-                      <ThemedText type="caption" style={{ color: trend.color }}>
-                        {trend.label}
-                      </ThemedText>
+                      <View style={styles.trendRow}>
+                        <Icon name={trend.icon} size={12} color={trend.color} />
+                        <ThemedText type="caption" style={{ color: trend.color }}>
+                          {trend.label}
+                        </ThemedText>
+                      </View>
                     ) : null}
                   </View>
                 </>
@@ -212,6 +230,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  trendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
   progressBar: {
     marginVertical: Spacing.one,

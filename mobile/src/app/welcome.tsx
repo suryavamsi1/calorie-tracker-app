@@ -63,22 +63,22 @@ export default function WelcomeScreen() {
             { backgroundColor: theme.primary, shadowColor: theme.primary, opacity: pressed ? 0.9 : 1 },
           ]}
         >
-          <ThemedText type="bodyBold" style={styles.buttonLabel} numberOfLines={1} allowFontScaling={false}>
+          <ThemedText type="bodyBold" style={[styles.buttonLabel, { color: theme.onPrimary }]} numberOfLines={1} allowFontScaling={false}>
             Get Started
           </ThemedText>
-          <Icon name="arrow-forward" size={18} color="#ffffff" />
+          <Icon name="arrow-forward" size={18} color={theme.onPrimary} />
         </Pressable>
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push('/login')}
           style={({ pressed }) => [
             styles.secondaryButton,
-            { backgroundColor: '#ffffff', borderColor: 'rgba(188, 203, 185, 0.3)', opacity: pressed ? 0.7 : 1 },
+            { backgroundColor: theme.surface, borderColor: theme.border, opacity: pressed ? 0.7 : 1 },
           ]}
         >
           <ThemedText
             type="bodyBold"
-            style={[styles.buttonLabel, { color: '#2170E4' }]}
+            style={[styles.buttonLabel, { color: theme.secondary }]}
             numberOfLines={1}
             allowFontScaling={false}
           >
@@ -182,7 +182,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   buttonLabel: {
-    color: '#ffffff',
     fontSize: 12,
     letterSpacing: 0.6,
   },

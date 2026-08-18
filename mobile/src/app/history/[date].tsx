@@ -50,11 +50,17 @@ export default function HistoryDayScreen() {
   const toast = useToast();
   const [detail, setDetail] = useState<HistoryDayDetail | null>(null);
   const [editingEntry, setEditingEntry] = useState<MealEntry | null>(null);
+  const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
     if (!date) return;
-    const data = await api.get<HistoryDayDetail>(`/history/${date}`);
-    setDetail(data);
+    try {
+      const data = await api.get<HistoryDayDetail>(`/history/${date}`);
+      setDetail(data);
+      setError(false);
+    } catch {
+      setError(true);
+    }
   }, [date]);
 
   useFocusEffect(
@@ -94,9 +100,21 @@ export default function HistoryDayScreen() {
           <AppHeader title="Day summary" variant="detail" />
         </SafeAreaView>
         <View style={styles.content}>
-          <Card>
-            <SkeletonCard />
-          </Card>
+          {error ? (
+            <Card>
+              <EmptyState
+                icon="alert-circle-outline"
+                title="Couldn't load this day"
+                subtitle="Check your connection and try again."
+                actionLabel="Retry"
+                onAction={load}
+              />
+            </Card>
+          ) : (
+            <Card>
+              <SkeletonCard />
+            </Card>
+          )}
         </View>
       </ThemedView>
     );

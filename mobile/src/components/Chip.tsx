@@ -25,6 +25,7 @@ export function Chip({ label, selected = false, onPress, icon, size = 'md', styl
       accessibilityRole="button"
       accessibilityState={{ selected }}
       onPress={onPress}
+      hitSlop={size === 'sm' ? 8 : 4}
       style={({ pressed }) => [
         styles.chip,
         size === 'sm' && styles.chipSm,
