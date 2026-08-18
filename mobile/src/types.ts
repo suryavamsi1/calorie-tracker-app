@@ -62,6 +62,13 @@ export interface HistoryDay {
   overGoal: boolean | null;
 }
 
+export interface WeightLog {
+  id: string;
+  weightKg: number;
+  loggedDate: string;
+  createdAt: string;
+}
+
 export interface HistoryDayDetail {
   date: string;
   totalCalories: number;

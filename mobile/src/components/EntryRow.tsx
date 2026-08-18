@@ -17,13 +17,13 @@ export function EntryRow({ entry, onPress }: { entry: MealEntry; onPress: () => 
       ]}
     >
       <View style={styles.info}>
-        <ThemedText type="small">{entry.foodName}</ThemedText>
+        <ThemedText type="small" style={styles.name}>{entry.foodName}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           {entry.quantity}x {entry.servingUnit}
         </ThemedText>
         <MacroLine proteinG={entry.proteinG} carbsG={entry.carbsG} fatG={entry.fatG} size="small" />
       </View>
-      <ThemedText type="smallBold">{entry.calories} cal</ThemedText>
+      <ThemedText type="smallBold" style={styles.calories}>{entry.calories}</ThemedText>
     </Pressable>
   );
 }
@@ -38,5 +38,13 @@ const styles = StyleSheet.create({
   },
   info: {
     gap: 2,
+  },
+  name: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  calories: {
+    fontSize: 16,
+    lineHeight: 24,
   },
 });

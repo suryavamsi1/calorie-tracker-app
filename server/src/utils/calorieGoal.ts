@@ -17,10 +17,13 @@ const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
   very_active: 1.9,
 };
 
+// Kept in sync with mobile/src/lib/calorieGoal.ts - see that file for the
+// reasoning (flat -500/+300 kcal/day adjustment on top of TDEE, matching the
+// standard ~0.5kg/week deficit/surplus recommendation).
 const GOAL_ADJUSTMENTS: Record<GoalType, number> = {
-  lose: -450,
+  lose: -500,
   maintain: 0,
-  gain: 250,
+  gain: 300,
 };
 
 const MIN_CALORIE_GOAL = 1200;
@@ -48,7 +51,8 @@ export function calculateCalorieGoal(input: CalorieGoalInput): number {
       : 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
 
   const tdee = bmr * ACTIVITY_MULTIPLIERS[activityLevel];
-  const adjusted = tdee + GOAL_ADJUSTMENTS[goalType];
+  const maintenance = Math.round(tdee / 10) * 10;
+  const adjusted = maintenance + GOAL_ADJUSTMENTS[goalType];
 
   return Math.max(MIN_CALORIE_GOAL, Math.round(adjusted / 10) * 10);
 }

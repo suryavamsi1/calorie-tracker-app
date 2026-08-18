@@ -5,75 +5,49 @@ import Animated, { FadeInRight } from 'react-native-reanimated';
 
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
+import { Icon, type IconName } from '@/components/Icon';
+import { InsightBanner } from '@/components/InsightBanner';
 import { ScreenContainer } from '@/components/ScreenContainer';
+import { SegmentedToggle } from '@/components/SegmentedToggle';
+import { SelectableCard } from '@/components/SelectableCard';
+import { StepProgress } from '@/components/StepProgress';
 import { TextField } from '@/components/TextField';
 import { ThemedText } from '@/components/themed-text';
 import { ACTIVITY_LEVEL_OPTIONS, GOAL_TYPE_OPTIONS } from '@/constants/options';
-import { Radius, Spacing } from '@/constants/theme';
+import { MacroColors, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
 import { track } from '@/lib/analytics';
-import { calculateCalorieGoal } from '@/lib/calorieGoal';
+import { calculateCalorieBreakdown, calculateMacroGoals } from '@/lib/calorieGoal';
 import type { ActivityLevel, GoalType, Sex, User } from '@/types';
 
-const TOTAL_STEPS = 2;
+const TOTAL_STEPS = 4;
 
-function StepIndicator({ step }: { step: 1 | 2 }) {
-  const theme = useTheme();
-  return (
-    <View style={styles.stepRow}>
-      <ThemedText type="caption" themeColor="textSecondary">
-        Step {step} of {TOTAL_STEPS}
-      </ThemedText>
-      <View style={styles.stepDots}>
-        {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.stepDot,
-              { backgroundColor: i < step ? theme.primary : theme.backgroundElement },
-            ]}
-          />
-        ))}
-      </View>
-    </View>
-  );
-}
+const ACTIVITY_ICONS: Record<ActivityLevel, IconName> = {
+  sedentary: 'body-outline',
+  light: 'walk-outline',
+  moderate: 'barbell-outline',
+  active: 'bicycle-outline',
+  very_active: 'flash-outline',
+};
 
-function Chip({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  const theme = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        styles.chip,
-        {
-          backgroundColor: selected ? theme.primary : theme.backgroundElement,
-          borderColor: selected ? theme.primary : theme.border,
-        },
-      ]}
-    >
-      {selected ? <ThemedText style={styles.chipCheck}>✓ </ThemedText> : null}
-      <ThemedText style={{ color: selected ? '#ffffff' : theme.text }} type="bodyBold">
-        {label}
-      </ThemedText>
-    </Pressable>
-  );
-}
+const GOAL_ICONS: Record<GoalType, IconName> = {
+  lose: 'trending-down-outline',
+  maintain: 'remove-outline',
+  gain: 'trending-up-outline',
+};
+
+const MACRO_ICONS: Record<'protein' | 'carbs' | 'fat', IconName> = {
+  protein: 'barbell-outline',
+  carbs: 'flash-outline',
+  fat: 'water-outline',
+};
 
 export default function OnboardingScreen() {
   const { setUser } = useAuth();
   const theme = useTheme();
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [age, setAge] = useState('');
   const [sex, setSex] = useState<Sex | null>(null);
   const [heightCm, setHeightCm] = useState('');
@@ -85,11 +59,11 @@ export default function OnboardingScreen() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const canContinue = Boolean(age && sex && heightCm && weightKg && activityLevel && goalType);
+  const canComputeGoal = Boolean(age && sex && heightCm && weightKg && activityLevel && goalType);
 
-  const suggestedGoal = useMemo(() => {
-    if (!canContinue) return null;
-    return calculateCalorieGoal({
+  const breakdown = useMemo(() => {
+    if (!canComputeGoal) return null;
+    return calculateCalorieBreakdown({
       age: Number(age),
       sex: sex as Sex,
       heightCm: Number(heightCm),
@@ -97,18 +71,48 @@ export default function OnboardingScreen() {
       activityLevel: activityLevel as ActivityLevel,
       goalType: goalType as GoalType,
     });
-  }, [age, sex, heightCm, weightKg, activityLevel, goalType, canContinue]);
+  }, [age, sex, heightCm, weightKg, activityLevel, goalType, canComputeGoal]);
+  const suggestedGoal = breakdown?.dailyTarget ?? null;
+
+  const finalGoalNumber = Number(goalOverride ?? suggestedGoal ?? 0);
+  const macroGoals = useMemo(() => {
+    if (!finalGoalNumber || !weightKg) return null;
+    return calculateMacroGoals(finalGoalNumber, Number(weightKg));
+  }, [finalGoalNumber, weightKg]);
 
   const isEdited = goalOverride !== null && suggestedGoal !== null && Number(goalOverride) !== suggestedGoal;
 
-  function handleContinue() {
+  function goNext() {
     setError(null);
-    if (!canContinue) {
-      setError('Please fill in all fields to continue.');
+    if (step === 1) {
+      if (!age || !sex || !heightCm || !weightKg) {
+        setError('Please fill in all fields to continue.');
+        return;
+      }
+      setStep(2);
       return;
     }
-    setGoalOverride(String(suggestedGoal));
-    setStep(2);
+    if (step === 2) {
+      if (!activityLevel) {
+        setError('Please select your activity level.');
+        return;
+      }
+      setStep(3);
+      return;
+    }
+    if (step === 3) {
+      if (!goalType) {
+        setError('Please select a goal.');
+        return;
+      }
+      setGoalOverride(String(suggestedGoal));
+      setStep(4);
+    }
+  }
+
+  function goBack() {
+    setError(null);
+    setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3 | 4) : s));
   }
 
   async function handleSave() {
@@ -131,6 +135,9 @@ export default function OnboardingScreen() {
       });
       const { user: withGoal } = await api.put<{ user: User }>('/me/goal', {
         dailyCalorieGoal: finalGoal,
+        dailyProteinGoal: macroGoals?.proteinG ?? null,
+        dailyCarbsGoal: macroGoals?.carbsG ?? null,
+        dailyFatGoal: macroGoals?.fatG ?? null,
       });
       setUser(withGoal ?? updated);
       track('onboarding_completed', { goalType, isEdited });
@@ -142,30 +149,50 @@ export default function OnboardingScreen() {
     }
   }
 
-  const activityLabel = ACTIVITY_LEVEL_OPTIONS.find((o) => o.value === activityLevel)?.label;
-  const goalLabel = GOAL_TYPE_OPTIONS.find((o) => o.value === goalType)?.label;
-
-  if (step === 2) {
+  if (step === 4) {
     return (
       <ScreenContainer>
-        <StepIndicator step={2} />
-        <ThemedText type="h1">Your daily goal</ThemedText>
-        <ThemedText themeColor="textSecondary">
-          Based on your profile, here&apos;s a suggested calorie target. You can adjust it any time.
-        </ThemedText>
+        <StepProgress step={4} totalSteps={TOTAL_STEPS} />
+        <Animated.View entering={FadeInRight.duration(300)} style={styles.stepContent}>
+          <ThemedText type="h1">Your Daily Target</ThemedText>
+          <ThemedText themeColor="textSecondary">
+            Based on your goals and profile, here&apos;s your customized plan.
+          </ThemedText>
 
-        <Animated.View entering={FadeInRight.duration(300)}>
           <Card style={styles.goalCard}>
-            <ThemedText themeColor="textSecondary" type="caption">
-              {isEdited ? 'Your calorie target' : 'Recommended daily calories'}
+            {breakdown ? (
+              <View style={styles.maintenanceRow}>
+                <View style={styles.maintenanceItem}>
+                  <ThemedText type="overline" themeColor="textSecondary">
+                    Maintenance
+                  </ThemedText>
+                  <ThemedText type="h3">{breakdown.maintenance.toLocaleString()}</ThemedText>
+                </View>
+                <View style={styles.maintenanceDivider} />
+                <View style={styles.maintenanceItem}>
+                  <ThemedText type="overline" themeColor="textSecondary">
+                    Est. Weekly Change
+                  </ThemedText>
+                  <ThemedText type="h3" themeColor={breakdown.weeklyRateKg < 0 ? 'success' : breakdown.weeklyRateKg > 0 ? 'accent' : 'text'}>
+                    {breakdown.weeklyRateKg > 0 ? '+' : ''}
+                    {breakdown.weeklyRateKg} kg
+                  </ThemedText>
+                </View>
+              </View>
+            ) : null}
+
+            <ThemedText themeColor="textSecondary" type="overline">
+              Daily Target
             </ThemedText>
-            <TextField
-              keyboardType="number-pad"
-              value={goalOverride ?? ''}
-              onChangeText={setGoalOverride}
-              style={styles.goalInput}
-              textAlign="center"
-            />
+            <View style={styles.goalInputWrapper}>
+              <TextField
+                keyboardType="number-pad"
+                value={goalOverride ?? ''}
+                onChangeText={setGoalOverride}
+                style={styles.goalInput}
+                textAlign="center"
+              />
+            </View>
             {isEdited && suggestedGoal !== null ? (
               <Pressable onPress={() => setGoalOverride(String(suggestedGoal))}>
                 <ThemedText type="caption" themeColor="primary">
@@ -179,36 +206,135 @@ export default function OnboardingScreen() {
                 </ThemedText>
               </View>
             )}
-          </Card>
 
-          <Card style={styles.summaryCard}>
-            <ThemedText type="caption" themeColor="textSecondary" style={styles.summaryHeading}>
-              Your profile
+            <ThemedText themeColor="textSecondary" type="overline" style={styles.macroHeading}>
+              Macro Targets
             </ThemedText>
-            <SummaryRow label="Age" value={`${age} years`} />
-            <SummaryRow label="Sex" value={sex === 'male' ? 'Male' : 'Female'} />
-            <SummaryRow label="Height" value={`${heightCm} cm`} />
-            <SummaryRow label="Weight" value={`${weightKg} kg`} />
-            <SummaryRow label="Activity" value={activityLabel ?? '—'} />
-            <SummaryRow label="Goal" value={goalLabel ?? '—'} />
+            <View style={styles.macroRow}>
+              <MacroTargetTile
+                label="Protein"
+                valueG={macroGoals?.proteinG ?? 0}
+                color={MacroColors.protein}
+                icon={MACRO_ICONS.protein}
+              />
+              <MacroTargetTile
+                label="Carbs"
+                valueG={macroGoals?.carbsG ?? 0}
+                color={MacroColors.carbs}
+                icon={MACRO_ICONS.carbs}
+              />
+              <MacroTargetTile label="Fats" valueG={macroGoals?.fatG ?? 0} color={MacroColors.fat} icon={MACRO_ICONS.fat} />
+            </View>
           </Card>
+
+          <InsightBanner
+            icon="flask-outline"
+            title="Why this works"
+            message="We estimate your maintenance calories (TDEE) from the Mifflin-St Jeor equation and your activity level, then apply a moderate 500 kcal/day deficit or surplus so your daily target - not your maintenance number - is what you actually eat toward your goal."
+          />
+
+          {error ? (
+            <ThemedText themeColor="danger" type="caption">
+              {error}
+            </ThemedText>
+          ) : null}
+
+          <Button title="Start Tracking" onPress={handleSave} loading={saving} />
+          <Button title="Back" variant="ghost" onPress={goBack} />
         </Animated.View>
+      </ScreenContainer>
+    );
+  }
 
-        {error ? (
-          <ThemedText themeColor="danger" type="caption">
-            {error}
+  if (step === 3) {
+    return (
+      <ScreenContainer>
+        <StepProgress step={3} totalSteps={TOTAL_STEPS} />
+        <Animated.View entering={FadeInRight.duration(300)} style={styles.stepContent}>
+          <ThemedText type="h1">What&apos;s your goal?</ThemedText>
+          <ThemedText themeColor="textSecondary">
+            We&apos;ll tailor your calorie and macro targets based on your selection.
           </ThemedText>
-        ) : null}
 
-        <Button title="Save and continue" onPress={handleSave} loading={saving} />
-        <Button title="Back" variant="ghost" onPress={() => setStep(1)} />
+          <View style={styles.stack}>
+            {GOAL_TYPE_OPTIONS.map((opt) => (
+              <SelectableCard
+                key={opt.value}
+                icon={GOAL_ICONS[opt.value as GoalType]}
+                title={opt.label}
+                description={
+                  opt.value === 'lose'
+                    ? 'Sustainable fat loss through a calculated caloric deficit.'
+                    : opt.value === 'gain'
+                      ? 'Controlled surplus to support muscle and weight gain.'
+                      : 'Stay exactly where you are with balanced energy intake.'
+                }
+                selected={goalType === opt.value}
+                onPress={() => setGoalType(opt.value as GoalType)}
+              />
+            ))}
+          </View>
+
+          <TextField
+            label="Target weight (kg, optional)"
+            keyboardType="decimal-pad"
+            value={targetWeightKg}
+            onChangeText={setTargetWeightKg}
+            placeholder="70"
+          />
+
+          {error ? (
+            <ThemedText themeColor="danger" type="caption">
+              {error}
+            </ThemedText>
+          ) : null}
+
+          <Button title="Continue" onPress={goNext} />
+          <Button title="Back" variant="ghost" onPress={goBack} />
+        </Animated.View>
+      </ScreenContainer>
+    );
+  }
+
+  if (step === 2) {
+    return (
+      <ScreenContainer>
+        <StepProgress step={2} totalSteps={TOTAL_STEPS} />
+        <Animated.View entering={FadeInRight.duration(300)} style={styles.stepContent}>
+          <ThemedText type="h1">How active are you?</ThemedText>
+          <ThemedText themeColor="textSecondary">
+            This helps us estimate your daily energy expenditure.
+          </ThemedText>
+
+          <View style={styles.stack}>
+            {ACTIVITY_LEVEL_OPTIONS.map((opt) => (
+              <SelectableCard
+                key={opt.value}
+                icon={ACTIVITY_ICONS[opt.value as ActivityLevel]}
+                title={opt.label}
+                description={opt.description}
+                selected={activityLevel === opt.value}
+                onPress={() => setActivityLevel(opt.value as ActivityLevel)}
+              />
+            ))}
+          </View>
+
+          {error ? (
+            <ThemedText themeColor="danger" type="caption">
+              {error}
+            </ThemedText>
+          ) : null}
+
+          <Button title="Continue" onPress={goNext} />
+          <Button title="Back" variant="ghost" onPress={goBack} />
+        </Animated.View>
       </ScreenContainer>
     );
   }
 
   return (
     <ScreenContainer>
-      <StepIndicator step={1} />
+      <StepProgress step={1} totalSteps={TOTAL_STEPS} />
       <Animated.View entering={FadeInRight.duration(300)} style={styles.stepContent}>
         <ThemedText type="h1">Tell us about you</ThemedText>
         <ThemedText themeColor="textSecondary">
@@ -219,10 +345,14 @@ export default function OnboardingScreen() {
 
         <View style={styles.field}>
           <ThemedText type="bodyBold">Sex</ThemedText>
-          <View style={styles.row}>
-            <Chip label="Male" selected={sex === 'male'} onPress={() => setSex('male')} />
-            <Chip label="Female" selected={sex === 'female'} onPress={() => setSex('female')} />
-          </View>
+          <SegmentedToggle
+            options={[
+              { value: 'male', label: 'Male' },
+              { value: 'female', label: 'Female' },
+            ]}
+            value={sex}
+            onChange={setSex}
+          />
         </View>
 
         <TextField
@@ -240,127 +370,102 @@ export default function OnboardingScreen() {
           placeholder="75"
         />
 
-        <View style={styles.field}>
-          <ThemedText type="bodyBold">Activity level</ThemedText>
-          <View style={styles.wrap}>
-            {ACTIVITY_LEVEL_OPTIONS.map((opt) => (
-              <Chip
-                key={opt.value}
-                label={opt.label}
-                selected={activityLevel === opt.value}
-                onPress={() => setActivityLevel(opt.value as ActivityLevel)}
-              />
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.field}>
-          <ThemedText type="bodyBold">Goal</ThemedText>
-          <View style={styles.row}>
-            {GOAL_TYPE_OPTIONS.map((opt) => (
-              <Chip
-                key={opt.value}
-                label={opt.label}
-                selected={goalType === opt.value}
-                onPress={() => setGoalType(opt.value as GoalType)}
-              />
-            ))}
-          </View>
-        </View>
-
-        <TextField
-          label="Target weight (kg, optional)"
-          keyboardType="decimal-pad"
-          value={targetWeightKg}
-          onChangeText={setTargetWeightKg}
-          placeholder="70"
-        />
-
         {error ? (
           <ThemedText themeColor="danger" type="caption">
             {error}
           </ThemedText>
         ) : null}
 
-        <Button title="Continue" onPress={handleContinue} />
+        <Button title="Continue" onPress={goNext} />
       </Animated.View>
     </ScreenContainer>
   );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function MacroTargetTile({
+  label,
+  valueG,
+  color,
+  icon,
+}: {
+  label: string;
+  valueG: number;
+  color: string;
+  icon: IconName;
+}) {
+  const theme = useTheme();
   return (
-    <View style={styles.summaryRow}>
-      <ThemedText type="caption" themeColor="textSecondary">
+    <View style={[styles.macroTile, { backgroundColor: theme.backgroundSelected }]}>
+      <Icon name={icon} size={20} color={color} />
+      <ThemedText type="overline" themeColor="textSecondary" style={styles.macroTileLabel}>
         {label}
       </ThemedText>
-      <ThemedText type="bodyBold">{value}</ThemedText>
+      <ThemedText type="h3">{valueG}g</ThemedText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  stepRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  stepDots: {
-    flexDirection: 'row',
-    gap: Spacing.one,
-  },
-  stepDot: {
-    width: 24,
-    height: 4,
-    borderRadius: Radius.full,
-  },
   stepContent: {
     gap: Spacing.three,
   },
   field: {
     gap: Spacing.two,
   },
-  row: {
-    flexDirection: 'row',
+  stack: {
     gap: Spacing.two,
-  },
-  wrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-  },
-  chipCheck: {
-    color: '#ffffff',
   },
   goalCard: {
     alignItems: 'center',
   },
+  maintenanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: Spacing.three,
+  },
+  maintenanceItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  maintenanceDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 32,
+    backgroundColor: 'rgba(128,128,128,0.3)',
+  },
+  goalInputWrapper: {
+    width: '100%',
+  },
   goalInput: {
     fontSize: 34,
     fontWeight: '800',
+    textAlign: 'center',
   },
   recommendedBadge: {
     borderRadius: Radius.full,
     paddingVertical: Spacing.half,
     paddingHorizontal: Spacing.three,
   },
-  summaryCard: {
+  macroHeading: {
     marginTop: Spacing.three,
-    gap: Spacing.two,
+    alignSelf: 'flex-start',
   },
-  summaryHeading: {
-    marginBottom: Spacing.half,
-  },
-  summaryRow: {
+  macroRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: Spacing.two,
+    width: '100%',
+    marginTop: Spacing.two,
+  },
+  macroTile: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing.two + 4,
+  },
+  macroTileLabel: {
+    letterSpacing: 0.3,
   },
 });
+

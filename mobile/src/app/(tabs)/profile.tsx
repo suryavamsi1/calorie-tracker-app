@@ -1,18 +1,27 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppHeader } from '@/components/AppHeader';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { ScreenContainer } from '@/components/ScreenContainer';
+import { Chip } from '@/components/Chip';
+import { Icon } from '@/components/Icon';
+import { ListRow } from '@/components/ListRow';
 import { TextField } from '@/components/TextField';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { ThemedView } from '@/components/themed-view';
+import { ACTIVITY_LEVEL_OPTIONS } from '@/constants/options';
+import { MacroColors, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
+import { useThemeMode, type ThemePreference } from '@/context/ThemeContext';
 import { useTheme } from '@/hooks/use-theme';
 import { api, ApiError } from '@/lib/api';
-import type { User } from '@/types';
+import { calculateCalorieGoal, calculateMacroGoals } from '@/lib/calorieGoal';
+import { formatMemberSince } from '@/lib/date';
+import type { ActivityLevel, GoalType, Sex, User } from '@/types';
 
 export default function ProfileScreen() {
   const { user, logOut, setUser } = useAuth();
@@ -22,6 +31,7 @@ export default function ProfileScreen() {
   const [name, setName] = useState(user?.name ?? '');
   const [weightKg, setWeightKg] = useState(user?.weightKg ? String(user.weightKg) : '');
   const [goal, setGoal] = useState(user?.dailyCalorieGoal ? String(user.dailyCalorieGoal) : '');
+  const [goalEditedManually, setGoalEditedManually] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,16 +39,50 @@ export default function ProfileScreen() {
     setError(null);
     setSaving(true);
     try {
+      const newWeightKg = weightKg ? Number(weightKg) : undefined;
       const { user: updated } = await api.put<{ user: User }>('/me', {
         name: name.trim() || undefined,
-        weightKg: weightKg ? Number(weightKg) : undefined,
+        weightKg: newWeightKg,
       });
-      const goalNumber = Number(goal);
-      const { user: withGoal } =
-        goalNumber && goalNumber !== updated.dailyCalorieGoal
-          ? await api.put<{ user: User }>('/me/goal', { dailyCalorieGoal: goalNumber })
-          : { user: updated };
+
+      // Weight affects both the Mifflin-St Jeor calorie estimate and the
+      // bodyweight-based protein target, so re-derive both whenever weight
+      // changes - unless the user typed their own calorie goal this session,
+      // in which case respect their explicit override.
+      const canRecalculate =
+        !goalEditedManually &&
+        newWeightKg &&
+        updated.age &&
+        updated.sex &&
+        updated.heightCm &&
+        updated.activityLevel &&
+        updated.goalType;
+
+      const finalGoal = canRecalculate
+        ? calculateCalorieGoal({
+            age: updated.age as number,
+            sex: updated.sex as Sex,
+            heightCm: updated.heightCm as number,
+            weightKg: newWeightKg as number,
+            activityLevel: updated.activityLevel as ActivityLevel,
+            goalType: updated.goalType as GoalType,
+          })
+        : Number(goal) || updated.dailyCalorieGoal;
+
+      const macros = finalGoal && newWeightKg ? calculateMacroGoals(finalGoal, newWeightKg) : null;
+
+      const { user: withGoal } = finalGoal
+        ? await api.put<{ user: User }>('/me/goal', {
+            dailyCalorieGoal: finalGoal,
+            dailyProteinGoal: macros?.proteinG ?? undefined,
+            dailyCarbsGoal: macros?.carbsG ?? undefined,
+            dailyFatGoal: macros?.fatG ?? undefined,
+          })
+        : { user: updated };
+
       setUser(withGoal);
+      setGoal(withGoal.dailyCalorieGoal ? String(withGoal.dailyCalorieGoal) : '');
+      setGoalEditedManually(false);
       setEditing(false);
       toast.show('Profile updated');
     } catch {
@@ -55,56 +99,200 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
+  const activity = ACTIVITY_LEVEL_OPTIONS.find((o) => o.value === user.activityLevel);
+
   return (
-    <ScreenContainer>
-      <View style={styles.header}>
-        <View style={[styles.avatar, { backgroundColor: theme.primarySoft }]}>
-          <ThemedText type="h2" themeColor="primary">
-            {(user.name ?? user.email).charAt(0).toUpperCase()}
-          </ThemedText>
-        </View>
-        <View>
-          <ThemedText type="h2">{user.name ?? 'Your profile'}</ThemedText>
-          <ThemedText type="caption" themeColor="textSecondary">
-            {user.email}
-          </ThemedText>
-        </View>
-      </View>
+    <ThemedView style={styles.flex}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: theme.surface }}>
+        <AppHeader title="Profile" />
+      </SafeAreaView>
 
-      <Card>
-        {editing ? (
-          <View style={styles.form}>
-            <TextField label="Name" value={name} onChangeText={setName} />
-            <TextField label="Weight (kg)" keyboardType="decimal-pad" value={weightKg} onChangeText={setWeightKg} />
-            <TextField label="Daily calorie goal" keyboardType="number-pad" value={goal} onChangeText={setGoal} />
-            {error ? (
-              <ThemedText themeColor="danger" type="caption">
-                {error}
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <View>
+            <View style={[styles.avatar, { backgroundColor: theme.primarySoft }]}>
+              <ThemedText type="display" themeColor="primary" style={styles.avatarInitial}>
+                {(user.name ?? user.email).charAt(0).toUpperCase()}
               </ThemedText>
-            ) : null}
-            <Button title="Save" onPress={handleSave} loading={saving} />
-            <Button title="Cancel" variant="ghost" onPress={() => setEditing(false)} />
+            </View>
+            <View style={[styles.avatarBadge, { backgroundColor: theme.primary }]}>
+              <Icon name="pencil" size={14} color="#ffffff" />
+            </View>
           </View>
-        ) : (
-          <View style={styles.form}>
-            <Row label="Weight" value={user.weightKg ? `${user.weightKg} kg` : '—'} />
-            <Row label="Goal type" value={user.goalType ?? '—'} />
-            <Row label="Daily calorie goal" value={user.dailyCalorieGoal ? `${user.dailyCalorieGoal} cal` : '—'} />
-            <Button title="Edit profile" variant="secondary" onPress={() => setEditing(true)} />
+          <ThemedText type="h1">{user.name ?? 'Your profile'}</ThemedText>
+          <ThemedText type="body" themeColor="textSecondary">
+            Member since {formatMemberSince(user.createdAt)}
+          </ThemedText>
+        </View>
+
+        <Card>
+          <View style={styles.cardHeader}>
+            <ThemedText type="h3">Health Profile</ThemedText>
+            <Pressable
+              onPress={() => {
+                if (!editing) {
+                  setName(user.name ?? '');
+                  setWeightKg(user.weightKg ? String(user.weightKg) : '');
+                  setGoal(user.dailyCalorieGoal ? String(user.dailyCalorieGoal) : '');
+                  setGoalEditedManually(false);
+                }
+                setEditing((v) => !v);
+              }}
+              hitSlop={8}
+            >
+              <Icon name={editing ? 'close' : 'pencil'} size={18} color={theme.textSecondary} />
+            </Pressable>
           </View>
-        )}
-      </Card>
 
-      <ChangePasswordCard />
+          {editing ? (
+            <View style={styles.form}>
+              <TextField label="Name" value={name} onChangeText={setName} />
+              <TextField label="Weight (kg)" keyboardType="decimal-pad" value={weightKg} onChangeText={setWeightKg} />
+              <TextField
+                label="Daily calorie goal"
+                keyboardType="number-pad"
+                value={goal}
+                onChangeText={(text) => {
+                  setGoal(text);
+                  setGoalEditedManually(true);
+                }}
+              />
+              {error ? (
+                <ThemedText themeColor="danger" type="caption">
+                  {error}
+                </ThemedText>
+              ) : null}
+              <Button title="Save" onPress={handleSave} loading={saving} />
+              <Button
+                title="Cancel"
+                variant="ghost"
+                onPress={() => {
+                  setGoalEditedManually(false);
+                  setEditing(false);
+                }}
+              />
+            </View>
+          ) : (
+            <View>
+              <ListRow label="Age" value={user.age ? `${user.age}` : '—'} showChevron />
+              <View style={[styles.divider, { backgroundColor: theme.border }]} />
+              <ListRow label="Height" value={user.heightCm ? `${user.heightCm} cm` : '—'} showChevron />
+              <View style={[styles.divider, { backgroundColor: theme.border }]} />
+              <ListRow label="Weight" value={user.weightKg ? `${user.weightKg} kg` : '—'} showChevron />
+            </View>
+          )}
+        </Card>
 
-      <Button title="Log out" variant="danger" onPress={handleLogout} />
+        <Card>
+          <ThemedText type="h3">Daily Targets</ThemedText>
+          <View style={styles.calorieCenter}>
+            <ThemedText type="overline" themeColor="textSecondary">
+              Calorie Goal
+            </ThemedText>
+            <View style={styles.calorieValueRow}>
+              <ThemedText type="display" style={styles.calorieValue}>
+                {user.dailyCalorieGoal ? user.dailyCalorieGoal.toLocaleString() : '—'}
+              </ThemedText>
+              <ThemedText type="body" themeColor="textSecondary">
+                kcal
+              </ThemedText>
+            </View>
+          </View>
+          <View style={styles.macroBarRow}>
+            <MacroBarTile label="Protein" valueG={user.dailyProteinGoal} color={MacroColors.protein} />
+            <MacroBarTile label="Carbs" valueG={user.dailyCarbsGoal} color={MacroColors.carbs} />
+            <MacroBarTile label="Fats" valueG={user.dailyFatGoal} color={MacroColors.fat} />
+          </View>
+        </Card>
 
-      <DeleteAccountSection />
-    </ScreenContainer>
+        {activity ? (
+          <Card style={styles.activityCard}>
+            <View style={[styles.activityIcon, { backgroundColor: theme.backgroundElement }]}>
+              <Icon name="walk" size={18} color={theme.primary} />
+            </View>
+            <View style={styles.flexOne}>
+              <ThemedText type="bodyBold">{activity.label}</ThemedText>
+              <ThemedText type="caption" themeColor="textSecondary">
+                {activity.description}
+              </ThemedText>
+            </View>
+            <Icon name="pencil" size={18} color={theme.textSecondary} />
+          </Card>
+        ) : null}
+
+        <Card>
+          <ThemedText type="h3" style={styles.accountHeading}>
+            Account
+          </ThemedText>
+          <ChangePasswordSection />
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+          <AppearanceSection />
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+          <ListRow
+            icon="scale-outline"
+            label="Units of Measurement"
+            value="Metric"
+            onPress={() => toast.show('Coming soon')}
+          />
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+          <ListRow
+            icon="notifications-outline"
+            label="Notifications"
+            onPress={() => toast.show('Coming soon')}
+          />
+        </Card>
+
+        <Button title="Log out" variant="secondary" onPress={handleLogout} />
+
+        <DeleteAccountSection />
+      </ScrollView>
+    </ThemedView>
   );
 }
 
-function ChangePasswordCard() {
+function MacroBarTile({ label, valueG, color }: { label: string; valueG: number | null; color: string }) {
+  const theme = useTheme();
+  const pct = valueG ? Math.min(1, Math.max(0.1, valueG / 250)) : 0.05;
+  return (
+    <View style={styles.macroBarTile}>
+      <View style={[styles.macroBarTrack, { backgroundColor: theme.backgroundSelected }]}>
+        <View style={[styles.macroBarFill, { height: `${pct * 100}%`, backgroundColor: color }]} />
+      </View>
+      <ThemedText type="smallBold">{valueG ? `${valueG}g` : '—'}</ThemedText>
+      <ThemedText type="overline" themeColor="textSecondary">
+        {label}
+      </ThemedText>
+    </View>
+  );
+}
+
+function AppearanceSection() {
+  const { preference, setPreference } = useThemeMode();
+  const options: Array<{ value: ThemePreference; label: string }> = [
+    { value: 'system', label: 'System' },
+    { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Dark' },
+  ];
+
+  return (
+    <View>
+      <ListRow icon="contrast" label="Appearance" showChevron={false} />
+      <View style={styles.appearanceRow}>
+        {options.map((option) => (
+          <Chip
+            key={option.value}
+            label={option.label}
+            selected={preference === option.value}
+            onPress={() => setPreference(option.value)}
+            size="sm"
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function ChangePasswordSection() {
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -133,10 +321,10 @@ function ChangePasswordCard() {
   }
 
   return (
-    <Card>
+    <View>
+      <ListRow icon="lock-closed" label="Change Password" onPress={() => setOpen((v) => !v)} />
       {open ? (
         <View style={styles.form}>
-          <ThemedText type="h3">Change password</ThemedText>
           <TextField
             label="Current password"
             secureTextEntry
@@ -152,10 +340,8 @@ function ChangePasswordCard() {
           <Button title="Update password" onPress={handleChangePassword} loading={saving} />
           <Button title="Cancel" variant="ghost" onPress={() => setOpen(false)} />
         </View>
-      ) : (
-        <Button title="Change password" variant="secondary" onPress={() => setOpen(true)} />
-      )}
-    </Card>
+      ) : null}
+    </View>
   );
 }
 
@@ -190,40 +376,114 @@ function DeleteAccountSection() {
       <ThemedText type="caption" themeColor="textSecondary">
         Deleting your account permanently removes your profile, entries, and custom foods.
       </ThemedText>
-      <Button title="Delete account" variant="danger" onPress={confirmDelete} loading={deleting} />
+      <Button title="Delete account" variant="dangerSoft" onPress={confirmDelete} loading={deleting} />
     </Card>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.row}>
-      <ThemedText type="caption" themeColor="textSecondary">
-        {label}
-      </ThemedText>
-      <ThemedText type="bodyBold">{value}</ThemedText>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  header: {
+  flex: { flex: 1 },
+  flexOne: { flex: 1 },
+  content: {
+    padding: Spacing.three + 4,
+    gap: Spacing.five,
+    paddingBottom: Spacing.six,
+  },
+  appearanceRow: {
     flexDirection: 'row',
+    gap: Spacing.two,
+    marginTop: Spacing.one,
+  },
+  header: {
     alignItems: 'center',
-    gap: Spacing.three,
+    gap: 2,
   },
   avatar: {
-    width: 52,
-    height: 52,
+    width: 96,
+    height: 96,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.two,
+  },
+  avatarInitial: {
+    fontSize: 36,
+    lineHeight: 42,
+  },
+  avatarBadge: {
+    position: 'absolute',
+    right: 0,
+    bottom: Spacing.two + 2,
+    width: 28,
+    height: 28,
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  form: {
-    gap: Spacing.three,
-  },
-  row: {
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  form: {
+    gap: Spacing.three,
+    marginTop: Spacing.two,
+  },
+  calorieCenter: {
+    alignItems: 'center',
+    marginTop: Spacing.one,
+    marginBottom: Spacing.four,
+  },
+  calorieValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+    marginTop: 4,
+  },
+  calorieValue: {
+    fontSize: 40,
+    lineHeight: 46,
+  },
+  macroBarRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.one,
+    gap: Spacing.two,
+  },
+  macroBarTile: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+  },
+  macroBarTrack: {
+    width: 48,
+    height: 96,
+    borderRadius: Radius.full,
+    justifyContent: 'flex-end',
+    padding: 4,
+    overflow: 'hidden',
+  },
+  macroBarFill: {
+    width: '100%',
+    borderRadius: Radius.full,
+  },
+  activityCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  activityIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountHeading: {
+    marginBottom: Spacing.one,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: Spacing.one,
   },
 });

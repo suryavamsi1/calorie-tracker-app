@@ -1,19 +1,22 @@
 import { StyleSheet, View } from 'react-native';
 
+import { Icon, type IconName } from '@/components/Icon';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
 export interface EmptyStateProps {
-  icon?: string;
+  icon?: IconName;
   title: string;
   subtitle?: string;
   compact?: boolean;
 }
 
-export function EmptyState({ icon = '🍽️', title, subtitle, compact }: EmptyStateProps) {
+export function EmptyState({ icon = 'restaurant-outline', title, subtitle, compact }: EmptyStateProps) {
+  const theme = useTheme();
   return (
     <View style={[styles.container, compact && styles.compact]}>
-      <ThemedText style={styles.icon}>{icon}</ThemedText>
+      <Icon name={icon} size={32} color={theme.textTertiary} />
       <ThemedText type="bodyBold" style={styles.title}>
         {title}
       </ThemedText>
@@ -35,10 +38,6 @@ const styles = StyleSheet.create({
   },
   compact: {
     paddingVertical: Spacing.three,
-  },
-  icon: {
-    fontSize: 32,
-    marginBottom: Spacing.one,
   },
   title: {
     textAlign: 'center',

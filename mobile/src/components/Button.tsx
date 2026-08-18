@@ -6,7 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
+export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'dangerSoft' | 'ghost';
 export type ButtonSize = 'md' | 'sm';
 
 export interface ButtonProps extends Omit<PressableProps, 'style'> {
@@ -55,11 +55,18 @@ export function Button({
       ? theme.primary
       : variant === 'danger'
         ? theme.danger
-        : variant === 'secondary'
-          ? theme.backgroundElement
-          : 'transparent';
+        : variant === 'dangerSoft'
+          ? theme.dangerSoft
+          : variant === 'secondary'
+            ? theme.backgroundElement
+            : 'transparent';
 
-  const textColor = variant === 'primary' || variant === 'danger' ? '#ffffff' : theme.text;
+  const textColor =
+    variant === 'primary' || variant === 'danger'
+      ? '#ffffff'
+      : variant === 'dangerSoft'
+        ? theme.danger
+        : theme.text;
 
   return (
     <AnimatedPressable

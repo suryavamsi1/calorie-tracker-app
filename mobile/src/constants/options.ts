@@ -8,11 +8,11 @@ export const MEAL_TYPE_LABELS: Record<(typeof MEAL_TYPES)[number], string> = {
 };
 
 export const ACTIVITY_LEVEL_OPTIONS: Array<{ value: string; label: string; description: string }> = [
-  { value: 'sedentary', label: 'Sedentary', description: 'Little or no exercise' },
+  { value: 'sedentary', label: 'Sedentary', description: 'Desk job, little or no exercise' },
   { value: 'light', label: 'Lightly active', description: 'Light exercise 1-3 days/week' },
   { value: 'moderate', label: 'Moderately active', description: 'Moderate exercise 3-5 days/week' },
-  { value: 'active', label: 'Active', description: 'Hard exercise 6-7 days/week' },
-  { value: 'very_active', label: 'Very active', description: 'Physical job or 2x/day training' },
+  { value: 'active', label: 'Very active', description: 'Hard exercise 6-7 days/week' },
+  { value: 'very_active', label: 'Extra active', description: 'Physical job, or hard training 2x/day' },
 ];
 
 export const GOAL_TYPE_OPTIONS: Array<{ value: string; label: string }> = [

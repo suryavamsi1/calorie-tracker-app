@@ -1,14 +1,13 @@
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useEffect, useState } from 'react';
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
+import { StyleSheet, View } from 'react-native';
 
+import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
-import { MacroLine } from '@/components/MacroLine';
+import { MacroBar } from '@/components/MacroBar';
+import { QuantityStepper } from '@/components/QuantityStepper';
 import { TextField } from '@/components/TextField';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Radius, Shadow, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Spacing } from '@/constants/theme';
 import type { MealEntry } from '@/types';
 
 export interface EntryUpdates {
@@ -27,7 +26,6 @@ export interface EditEntryModalProps {
 }
 
 export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood }: EditEntryModalProps) {
-  const theme = useTheme();
   const [quantity, setQuantity] = useState('1');
   const [customName, setCustomName] = useState('');
   const [customCalories, setCustomCalories] = useState('');
@@ -82,13 +80,7 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood
   }
 
   return (
-    <Modal transparent animationType="none" visible onRequestClose={onClose}>
-      <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(150)} style={styles.backdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <Animated.View entering={SlideInDown.duration(280)} exiting={SlideOutDown.duration(200)}>
-          <ThemedView type="surface" style={[styles.sheet, Shadow.raised]}>
-            <View style={[styles.handle, { backgroundColor: theme.border }]} />
-
+    <BottomSheet visible onClose={onClose}>
             {isCustom ? (
               <View style={styles.field}>
                 <ThemedText type="caption" themeColor="textSecondary">
@@ -102,7 +94,7 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood
                 <ThemedText themeColor="textSecondary" type="caption">
                   {entry.servingSize} {entry.servingUnit} per serving
                 </ThemedText>
-                <MacroLine proteinG={entry.proteinG} carbsG={entry.carbsG} fatG={entry.fatG} />
+                <MacroBar proteinG={entry.proteinG} carbsG={entry.carbsG} fatG={entry.fatG} />
               </>
             )}
 
@@ -123,17 +115,12 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood
               <ThemedText type="caption" themeColor="textSecondary">
                 Quantity (servings)
               </ThemedText>
-              <View style={styles.stepperRow}>
-                <Button title="−" variant="secondary" size="sm" onPress={() => adjustQuantity(-0.5)} />
-                <TextField
-                  keyboardType="decimal-pad"
-                  value={quantity}
-                  onChangeText={setQuantity}
-                  style={styles.stepperInput}
-                  textAlign="center"
-                />
-                <Button title="+" variant="secondary" size="sm" onPress={() => adjustQuantity(0.5)} />
-              </View>
+              <QuantityStepper
+                value={quantity}
+                onChangeText={setQuantity}
+                onDecrement={() => adjustQuantity(-0.5)}
+                onIncrement={() => adjustQuantity(0.5)}
+              />
             </View>
 
             {!isCustom && onReplaceFood ? (
@@ -143,42 +130,13 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood
             <Button title="Save changes" onPress={handleSave} loading={busy} />
             <Button title="Delete entry" variant="danger" onPress={handleDelete} loading={busy} />
             <Button title="Cancel" variant="ghost" onPress={onClose} />
-          </ThemedView>
-        </Animated.View>
-      </Animated.View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(11,18,32,0.45)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    padding: Spacing.four,
-    gap: Spacing.two,
-  },
-  handle: {
-    alignSelf: 'center',
-    width: 36,
-    height: 4,
-    borderRadius: Radius.full,
-    marginBottom: Spacing.two,
-  },
   field: {
     marginVertical: Spacing.two,
     gap: Spacing.one,
-  },
-  stepperRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-  stepperInput: {
-    flex: 1,
   },
 });

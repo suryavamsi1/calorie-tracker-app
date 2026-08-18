@@ -9,6 +9,7 @@ import foodsRoutes from "./routes/foods.routes";
 import entriesRoutes from "./routes/entries.routes";
 import historyRoutes from "./routes/history.routes";
 import eventsRoutes from "./routes/events.routes";
+import weightRoutes from "./routes/weight.routes";
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -47,6 +48,7 @@ export function createApp() {
   app.use("/entries", entriesRoutes);
   app.use("/history", historyRoutes);
   app.use("/events", eventsRoutes);
+  app.use("/weight-logs", weightRoutes);
 
   app.use((_req, res) => {
     res.status(404).json({ error: "Not found" });

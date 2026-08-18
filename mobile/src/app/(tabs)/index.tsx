@@ -1,36 +1,51 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Button } from '@/components/Button';
+import { AppHeader } from '@/components/AppHeader';
 import { Card } from '@/components/Card';
 import { EditEntryModal, type EntryUpdates } from '@/components/EditEntryModal';
 import { EmptyState } from '@/components/EmptyState';
 import { EntryRow } from '@/components/EntryRow';
+import { Fab } from '@/components/Fab';
+import { Icon } from '@/components/Icon';
+import { InsightBanner } from '@/components/InsightBanner';
+import { MacroStatCard } from '@/components/MacroStatCard';
 import { OfflineBanner } from '@/components/OfflineBanner';
-import { ProgressBar } from '@/components/ProgressBar';
 import { ProgressRing } from '@/components/ProgressRing';
 import { SkeletonCard } from '@/components/Skeleton';
 import { SwipeableRow } from '@/components/SwipeableRow';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MEAL_TYPES, MEAL_TYPE_LABELS } from '@/constants/options';
-import { MealColors, Radius, Spacing } from '@/constants/theme';
+import { MacroColors, MealColors, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useTheme } from '@/hooks/use-theme';
 import { api, ApiError } from '@/lib/api';
 import { getCache, setCache } from '@/lib/cache';
-import { todayDateString } from '@/lib/date';
+import { guessMealType, todayDateString } from '@/lib/date';
 import type { MealEntry, MealType } from '@/types';
 
-function getMotivation(remaining: number | null, goal: number | null): string {
-  if (goal === null || remaining === null) return "Set a daily goal to start tracking.";
-  if (remaining < 0) return `${Math.abs(remaining)} over your goal today`;
-  if (remaining <= goal * 0.1) return "Almost at your goal — nice work!";
-  if (remaining === goal) return "Let's log your first meal today.";
-  return "You're on track today";
+function getMotivation(
+  remaining: number | null,
+  goal: number | null
+): { title: string; message: string; tone: 'success' | 'warning' | 'danger' } {
+  if (goal === null || remaining === null) {
+    return { title: 'Set a goal', message: 'Set a daily calorie goal to start tracking progress.', tone: 'warning' };
+  }
+  if (remaining < 0) {
+    return { title: 'Over goal', message: `You're ${Math.abs(remaining)} cal over your goal today.`, tone: 'danger' };
+  }
+  if (remaining <= goal * 0.1) {
+    return { title: 'Almost there!', message: `Just ${remaining} cal left \u2014 nice work today.`, tone: 'success' };
+  }
+  if (remaining === goal) {
+    return { title: 'Let\u2019s get started', message: 'Log your first meal to start tracking today.', tone: 'success' };
+  }
+  return { title: 'On track', message: `You have ${remaining} cal left for the rest of the day.`, tone: 'success' };
 }
 
 export default function DashboardScreen() {
@@ -106,6 +121,7 @@ export default function DashboardScreen() {
   const remaining = goal !== null ? goal - consumed : null;
   const progress = goal ? Math.min(consumed / goal, 1) : 0;
   const isOverGoal = remaining !== null && remaining < 0;
+  const insight = getMotivation(remaining, goal);
 
   const totalProteinG = entries.reduce((sum, e) => sum + (e.proteinG ?? 0), 0);
   const totalCarbsG = entries.reduce((sum, e) => sum + (e.carbsG ?? 0), 0);
@@ -126,19 +142,14 @@ export default function DashboardScreen() {
 
   return (
     <ThemedView style={styles.flex}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: theme.surface }}>
+        <AppHeader title="Dashboard" />
+      </SafeAreaView>
+
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
       >
-        <View style={styles.headerRow}>
-          <View>
-            <ThemedText type="overline" themeColor="textSecondary">
-              {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
-            </ThemedText>
-            <ThemedText type="h1">Today</ThemedText>
-          </View>
-        </View>
-
         {isOffline ? <OfflineBanner /> : null}
 
         {loading ? (
@@ -146,68 +157,37 @@ export default function DashboardScreen() {
             <SkeletonCard />
           </Card>
         ) : (
-          <Animated.View entering={FadeInDown.duration(400)}>
-            <Card style={styles.heroCard}>
-              <ProgressRing progress={progress} color={isOverGoal ? theme.danger : theme.primary}>
-                <ThemedText type="caption" themeColor="textSecondary">
-                  {isOverGoal ? 'Over by' : 'Remaining'}
-                </ThemedText>
-                <ThemedText type="display" style={styles.ringNumber}>
-                  {remaining !== null ? Math.abs(remaining) : '—'}
-                </ThemedText>
-                <ThemedText type="caption" themeColor="textSecondary">
-                  cal
-                </ThemedText>
-              </ProgressRing>
-
-              <View style={styles.heroStats}>
-                <View style={styles.heroStat}>
-                  <ThemedText type="h2">{consumed}</ThemedText>
-                  <ThemedText type="caption" themeColor="textSecondary">
-                    Eaten
-                  </ThemedText>
+          <>
+            <Animated.View entering={FadeInDown.duration(400)}>
+              <Card style={styles.overviewCard}>
+                <View style={styles.ringWrap}>
+                  <ProgressRing size={192} strokeWidth={8} progress={progress} color={isOverGoal ? theme.danger : theme.primary}>
+                    <ThemedText type="display" style={styles.ringNumber}>
+                      {remaining !== null ? Math.abs(remaining) : '—'}
+                    </ThemedText>
+                    <ThemedText type="caption" themeColor="textSecondary">
+                      {isOverGoal ? 'cal over' : 'kcal left'}
+                    </ThemedText>
+                  </ProgressRing>
                 </View>
-                <View style={[styles.heroDivider, { backgroundColor: theme.border }]} />
-                <View style={styles.heroStat}>
-                  <ThemedText type="h2">{goal ?? '—'}</ThemedText>
-                  <ThemedText type="caption" themeColor="textSecondary">
-                    Goal
-                  </ThemedText>
-                </View>
-              </View>
 
-              <View
-                style={[
-                  styles.motivationPill,
-                  { backgroundColor: isOverGoal ? theme.dangerSoft : theme.successSoft },
-                ]}
-              >
-                <ThemedText
-                  type="caption"
-                  themeColor={isOverGoal ? 'danger' : 'success'}
-                  style={styles.motivationText}
-                >
-                  {getMotivation(remaining, goal)}
-                </ThemedText>
-              </View>
-            </Card>
-          </Animated.View>
+                <View style={styles.macroRow}>
+                  <MacroStatCard label="Protein" valueG={totalProteinG} goalG={user?.dailyProteinGoal ?? null} color={MacroColors.protein} />
+                  <MacroStatCard label="Carbs" valueG={totalCarbsG} goalG={user?.dailyCarbsGoal ?? null} color={MacroColors.carbs} />
+                  <MacroStatCard label="Fats" valueG={totalFatG} goalG={user?.dailyFatGoal ?? null} color={MacroColors.fat} />
+                </View>
+              </Card>
+            </Animated.View>
+
+            <Animated.View entering={FadeInDown.duration(400).delay(100)}>
+              <InsightBanner title={insight.title} message={insight.message} tone={insight.tone} />
+            </Animated.View>
+          </>
         )}
 
-        {!loading ? (
-          <Animated.View entering={FadeInDown.duration(400).delay(60)}>
-            <Card>
-              <ThemedText type="overline" themeColor="textSecondary">
-                Macros today
-              </ThemedText>
-              <View style={styles.macroRow}>
-                <MacroStat label="Protein" value={totalProteinG} goal={user?.dailyProteinGoal ?? null} color={theme.primary} />
-                <MacroStat label="Carbs" value={totalCarbsG} goal={user?.dailyCarbsGoal ?? null} color={theme.accent} />
-                <MacroStat label="Fat" value={totalFatG} goal={user?.dailyFatGoal ?? null} color={theme.warning} />
-              </View>
-            </Card>
-          </Animated.View>
-        ) : null}
+        <ThemedText type="h2" style={styles.sectionHeading}>
+          Today&apos;s Meals
+        </ThemedText>
 
         {MEAL_TYPES.map((mealType, index) => {
           const mealEntries = entriesByMeal[mealType];
@@ -219,14 +199,23 @@ export default function DashboardScreen() {
               <Card style={styles.mealCard}>
                 <View style={styles.mealHeader}>
                   <View style={styles.mealTitleRow}>
-                    <View style={[styles.mealIcon, { backgroundColor: theme.backgroundElement }]}>
-                      <ThemedText style={styles.mealIconText}>{meal.icon}</ThemedText>
+                    <View style={[styles.mealIcon, { backgroundColor: theme.backgroundSelected }]}>
+                      <Icon name={meal.icon} size={24} color={theme.text} />
                     </View>
-                    <ThemedText type="h3">{MEAL_TYPE_LABELS[mealType]}</ThemedText>
+                    <View>
+                      <ThemedText type="h2" style={styles.mealName}>{MEAL_TYPE_LABELS[mealType]}</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {mealTotal} kcal
+                      </ThemedText>
+                    </View>
                   </View>
-                  <ThemedText type="caption" themeColor="textSecondary">
-                    {mealTotal} cal
-                  </ThemedText>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => router.push({ pathname: '/add-food', params: { mealType, date } })}
+                    style={[styles.mealAddButton, { backgroundColor: theme.primary }]}
+                  >
+                    <Icon name="add" size={20} color="#ffffff" />
+                  </Pressable>
                 </View>
 
                 {mealEntries.length === 0 ? (
@@ -249,18 +238,13 @@ export default function DashboardScreen() {
                     ))}
                   </View>
                 )}
-
-                <Button
-                  title={`+ Add to ${MEAL_TYPE_LABELS[mealType].toLowerCase()}`}
-                  variant="secondary"
-                  size="sm"
-                  onPress={() => router.push({ pathname: '/add-food', params: { mealType, date } })}
-                />
               </Card>
             </Animated.View>
           );
         })}
       </ScrollView>
+
+      <Fab onPress={() => router.push({ pathname: '/add-food', params: { mealType: guessMealType(), date } })} />
 
       <EditEntryModal
         entry={editingEntry}
@@ -273,93 +257,29 @@ export default function DashboardScreen() {
   );
 }
 
-function MacroStat({
-  label,
-  value,
-  goal,
-  color,
-}: {
-  label: string;
-  value: number;
-  goal: number | null;
-  color: string;
-}) {
-  const rounded = Math.round(value * 10) / 10;
-  const display = Number.isInteger(rounded) ? rounded : rounded.toFixed(1);
-  const progress = goal ? Math.min(value / goal, 1) : null;
-
-  return (
-    <View style={styles.macroStat}>
-      <ThemedText type="h3">
-        {display}
-        {goal ? <ThemedText themeColor="textSecondary">{` / ${goal}`}</ThemedText> : null}g
-      </ThemedText>
-      <ThemedText type="caption" themeColor="textSecondary">
-        {label}
-      </ThemedText>
-      {progress !== null ? (
-        <ProgressBar progress={progress} color={color} height={5} style={styles.macroStatBar} />
-      ) : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: {
-    padding: Spacing.four,
+    padding: Spacing.three + 4,
+    gap: Spacing.four,
+    paddingBottom: Spacing.six + Spacing.five,
+  },
+  overviewCard: {
     gap: Spacing.three,
-    paddingBottom: Spacing.six,
   },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  heroCard: {
+  ringWrap: {
     alignItems: 'center',
-    paddingVertical: Spacing.four,
-    gap: Spacing.three,
   },
   ringNumber: {
-    fontSize: 34,
-    lineHeight: 38,
-  },
-  heroStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.four,
-  },
-  heroStat: {
-    alignItems: 'center',
-    gap: 2,
-    minWidth: 64,
-  },
-  heroDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 32,
+    fontSize: 44,
+    lineHeight: 50,
   },
   macroRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    gap: Spacing.two,
+  },
+  sectionHeading: {
     marginTop: Spacing.two,
-  },
-  macroStat: {
-    alignItems: 'center',
-    gap: 2,
-    minWidth: 80,
-  },
-  macroStatBar: {
-    marginTop: Spacing.one,
-    width: 56,
-  },
-  motivationPill: {
-    borderRadius: Radius.full,
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.three,
-  },
-  motivationText: {
-    textAlign: 'center',
   },
   mealCard: {
     gap: Spacing.two,
@@ -372,17 +292,25 @@ const styles = StyleSheet.create({
   mealTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: Spacing.three,
   },
   mealIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: Radius.sm,
+    width: 40,
+    height: 40,
+    borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mealIconText: {
-    fontSize: 15,
+  mealName: {
+    fontSize: 20,
+    lineHeight: 28,
+  },
+  mealAddButton: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   entryList: {
     gap: 2,

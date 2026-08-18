@@ -84,6 +84,18 @@ export function initDb() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_events_name ON events(name);
+
+    CREATE TABLE IF NOT EXISTS weight_logs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      weight_kg REAL NOT NULL,
+      logged_date TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(user_id, logged_date)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_weight_logs_user_date
+      ON weight_logs(user_id, logged_date);
   `);
 
   migrateAddMacroColumns();

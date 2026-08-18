@@ -2,9 +2,12 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppHeader } from '@/components/AppHeader';
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
+import { MacroConsistencyCard, WeekStrip, WeightTrendCard } from '@/components/HistoryInsights';
 import { MacroLine } from '@/components/MacroLine';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProgressBar } from '@/components/ProgressBar';
@@ -18,6 +21,7 @@ import { getCache, setCache } from '@/lib/cache';
 import { formatDisplayDate } from '@/lib/date';
 import type { HistoryDay } from '@/types';
 export default function HistoryScreen() {
+  const theme = useTheme();
   const [days, setDays] = useState<HistoryDay[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -49,9 +53,9 @@ export default function HistoryScreen() {
 
   return (
     <ThemedView style={styles.flex}>
-      <ThemedText type="h1" style={styles.heading}>
-        History
-      </ThemedText>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: theme.surface }}>
+        <AppHeader title="History" />
+      </SafeAreaView>
 
       {isOffline ? (
         <View style={styles.offlineBannerWrap}>
@@ -82,9 +86,17 @@ export default function HistoryScreen() {
               }}
             />
           }
+          ListHeaderComponent={
+            <View style={styles.insights}>
+              <WeekStrip />
+              <WeightTrendCard />
+              <MacroConsistencyCard days={days} />
+              <ThemedText type="h3">Daily History</ThemedText>
+            </View>
+          }
           ListEmptyComponent={
             <EmptyState
-              icon="📅"
+              icon="calendar-outline"
               title="No days logged yet"
               subtitle="Add some food from the Today tab to build your history."
             />
@@ -164,6 +176,10 @@ function HistoryDayCard({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  insights: {
+    gap: Spacing.three,
+    marginBottom: Spacing.three,
+  },
   heading: {
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.four,
