@@ -1,5 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { db } from "../db";
 import { generateId } from "../utils/id";
@@ -7,13 +8,25 @@ import { signToken } from "../utils/jwt";
 
 const router = Router();
 
+// Only the brute-force-sensitive auth endpoints (signup/login) get rate
+// limited - this must be applied per-route, not as a blanket app.use('/',
+// ...) middleware, since that would match every request in the app.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please try again later." },
+  skip: () => process.env.NODE_ENV === "test",
+});
+
 const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   name: z.string().min(1).optional(),
 });
 
-router.post("/signup", (req, res) => {
+router.post("/signup", authLimiter, (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
@@ -41,7 +54,7 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-router.post("/login", (req, res) => {
+router.post("/login", authLimiter, (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });

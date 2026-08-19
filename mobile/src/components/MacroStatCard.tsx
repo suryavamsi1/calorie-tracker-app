@@ -24,9 +24,9 @@ export function MacroStatCard({ label, valueG, goalG, color }: MacroStatCardProp
       <ThemedText type="overline" themeColor="textSecondary">
         {label}
       </ThemedText>
-      <ThemedText type="h2" style={styles.value}>
+      <ThemedText type="h2" style={styles.value} numberOfLines={1} adjustsFontSizeToFit>
         {display}
-        {goalG ? <ThemedText themeColor="textSecondary">{` / ${goalG}g`}</ThemedText> : 'g'}
+        {goalG ? <ThemedText type="caption" themeColor="textSecondary">{` / ${goalG}g`}</ThemedText> : 'g'}
       </ThemedText>
       <ProgressBar progress={progress ?? 0} color={color} height={6} style={styles.bar} />
     </View>
@@ -37,7 +37,7 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     borderRadius: Radius.md,
-    padding: Spacing.two + 4,
+    padding: Spacing.twoAndHalf,
     gap: 4,
   },
   value: {

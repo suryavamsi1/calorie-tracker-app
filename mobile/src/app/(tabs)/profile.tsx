@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/AppHeader';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Chip } from '@/components/Chip';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Icon } from '@/components/Icon';
 import { ListRow } from '@/components/ListRow';
 import { TextField } from '@/components/TextField';
@@ -452,8 +453,10 @@ function DeleteAccountSection() {
   const { logOut } = useAuth();
   const toast = useToast();
   const [deleting, setDeleting] = useState(false);
+  const [confirmVisible, setConfirmVisible] = useState(false);
 
   async function performDelete() {
+    setConfirmVisible(false);
     setDeleting(true);
     try {
       await api.delete('/me');
@@ -466,23 +469,20 @@ function DeleteAccountSection() {
     }
   }
 
-  function confirmDelete() {
-    Alert.alert(
-      'Delete account?',
-      'This permanently deletes your account and all logged data. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: performDelete },
-      ]
-    );
-  }
-
   return (
     <Card>
       <ThemedText type="caption" themeColor="textSecondary">
         Deleting your account permanently removes your profile, entries, and custom foods.
       </ThemedText>
-      <Button title="Delete account" variant="dangerSoft" onPress={confirmDelete} loading={deleting} />
+      <Button title="Delete account" variant="dangerSoft" onPress={() => setConfirmVisible(true)} loading={deleting} />
+      <ConfirmDialog
+        visible={confirmVisible}
+        title="Delete account?"
+        message="This permanently deletes your account and all logged data. This cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={performDelete}
+        onCancel={() => setConfirmVisible(false)}
+      />
     </Card>
   );
 }
@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   flexOne: { flex: 1 },
   content: {
-    padding: Spacing.three + 4,
+    padding: Spacing.threeAndHalf,
     gap: Spacing.five,
     paddingBottom: Spacing.six,
   },

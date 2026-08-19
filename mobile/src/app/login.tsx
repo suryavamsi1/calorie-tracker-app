@@ -99,7 +99,12 @@ export default function LoginScreen() {
           placeholder="••••••••"
           error={passwordError}
           rightAccessory={
-            <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
+            <Pressable
+              onPress={() => setShowPassword((v) => !v)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+            >
               <Icon name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={theme.textSecondary} />
             </Pressable>
           }

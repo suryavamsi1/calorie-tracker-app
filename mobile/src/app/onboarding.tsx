@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     borderRadius: Radius.lg,
-    paddingVertical: Spacing.two + 4,
+    paddingVertical: Spacing.twoAndHalf,
   },
   macroTileLabel: {
     letterSpacing: 0.3,

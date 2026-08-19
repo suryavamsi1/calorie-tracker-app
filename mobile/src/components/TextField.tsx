@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    paddingVertical: Spacing.two + 4,
+    paddingVertical: Spacing.twoAndHalf,
     fontSize: 16,
   },
 });

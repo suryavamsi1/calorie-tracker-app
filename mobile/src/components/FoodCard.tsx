@@ -38,14 +38,19 @@ export function FoodCard({ food, onPress, onQuickAdd, onToggleFavorite, index = 
             </ThemedText>
             <MacroLine proteinG={food.proteinG} carbsG={food.carbsG} fatG={food.fatG} />
           </View>
-          <Pressable onPress={onToggleFavorite} hitSlop={8}>
+          <Pressable
+            onPress={onToggleFavorite}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={food.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          >
             <Icon
               name={food.isFavorite ? 'star' : 'star-outline'}
               size={20}
               color={food.isFavorite ? theme.accent : theme.textTertiary}
             />
           </Pressable>
-          <Pressable onPress={onQuickAdd} hitSlop={8}>
+          <Pressable onPress={onQuickAdd} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Add ${food.name} to meal`}>
             <View style={[styles.quickAddButton, { backgroundColor: theme.backgroundSelected }]}>
               <Icon name="add" size={20} color={theme.primary} />
             </View>

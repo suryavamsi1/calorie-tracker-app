@@ -9,7 +9,6 @@ import { Icon } from '@/components/Icon';
 import { TextField } from '@/components/TextField';
 import { ThemedText } from '@/components/themed-text';
 import { MacroColors, Radius, Spacing } from '@/constants/theme';
-import { useThemeMode } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
@@ -31,8 +30,6 @@ function toDateString(d: Date): string {
 /** Horizontal Sun-Sat strip for the current week, matching the insights_history mockup. */
 export function WeekStrip() {
   const theme = useTheme();
-  const { scheme } = useThemeMode();
-  const onPrimaryColor = scheme === 'dark' ? '#003915' : '#ffffff';
   const today = todayDateString();
   const weekStart = startOfWeek(new Date());
 
@@ -53,19 +50,21 @@ export function WeekStrip() {
             key={dateString}
             disabled={isFuture}
             onPress={() => router.push(`/history/${dateString}`)}
+            accessibilityRole="button"
+            accessibilityLabel={`View ${dateString}`}
             style={[styles.weekDay, isToday && { backgroundColor: theme.primary }]}
           >
             <ThemedText
               type="overline"
               themeColor={isToday ? undefined : 'textSecondary'}
-              style={[styles.weekLetter, isToday && { color: onPrimaryColor }]}
+              style={[styles.weekLetter, isToday && { color: theme.onPrimary }]}
             >
               {DAY_LETTERS[i]}
             </ThemedText>
             <ThemedText
               type="smallBold"
               themeColor={isFuture ? 'textTertiary' : 'text'}
-              style={isToday ? { color: onPrimaryColor } : undefined}
+              style={isToday ? { color: theme.onPrimary } : undefined}
             >
               {d.getDate()}
             </ThemedText>
@@ -104,14 +103,16 @@ export function WeightTrendCard() {
   if (error) {
     return (
       <Card style={styles.weightEmptyCard}>
-        <View style={[styles.weightIconWrap, { backgroundColor: theme.dangerSoft }]}>
-          <Icon name="alert-circle-outline" size={20} color={theme.onDangerSoft} />
-        </View>
-        <View style={styles.flexOne}>
-          <ThemedText type="h3">Weight Trend</ThemedText>
-          <ThemedText type="caption" themeColor="textSecondary">
-            Couldn&apos;t load your weight trend. Check your connection.
-          </ThemedText>
+        <View style={styles.weightEmptyRow}>
+          <View style={[styles.weightIconWrap, { backgroundColor: theme.dangerSoft }]}>
+            <Icon name="alert-circle-outline" size={20} color={theme.onDangerSoft} />
+          </View>
+          <View style={styles.flexOne}>
+            <ThemedText type="h3">Weight Trend</ThemedText>
+            <ThemedText type="caption" themeColor="textSecondary">
+              Couldn&apos;t load your weight trend. Check your connection.
+            </ThemedText>
+          </View>
         </View>
         <Button title="Retry" size="sm" variant="secondary" onPress={load} />
       </Card>
@@ -121,14 +122,16 @@ export function WeightTrendCard() {
   if (logs.length < 2) {
     return (
       <Card style={styles.weightEmptyCard}>
-        <View style={[styles.weightIconWrap, { backgroundColor: theme.backgroundSelected }]}>
-          <Icon name="trending-up-outline" size={20} color={theme.primary} />
-        </View>
-        <View style={styles.flexOne}>
-          <ThemedText type="h3">Weight Trend</ThemedText>
-          <ThemedText type="caption" themeColor="textSecondary">
-            Log your weight to start tracking your trend.
-          </ThemedText>
+        <View style={styles.weightEmptyRow}>
+          <View style={[styles.weightIconWrap, { backgroundColor: theme.backgroundSelected }]}>
+            <Icon name="trending-up-outline" size={20} color={theme.primary} />
+          </View>
+          <View style={styles.flexOne}>
+            <ThemedText type="h3">Weight Trend</ThemedText>
+            <ThemedText type="caption" themeColor="textSecondary">
+              Log your weight to start tracking your trend.
+            </ThemedText>
+          </View>
         </View>
         <Button title="Log weight" size="sm" variant="secondary" onPress={() => setModalVisible(true)} />
         <LogWeightModal
@@ -342,6 +345,9 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   weightEmptyCard: {
+    gap: Spacing.two,
+  },
+  weightEmptyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,

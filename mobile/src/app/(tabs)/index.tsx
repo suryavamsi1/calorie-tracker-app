@@ -272,7 +272,7 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: {
-    padding: Spacing.three + 4,
+    padding: Spacing.threeAndHalf,
     gap: Spacing.four,
     paddingBottom: Spacing.six + Spacing.five,
   },

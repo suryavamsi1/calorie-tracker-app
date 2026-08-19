@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MacroBar } from '@/components/MacroBar';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { TextField } from '@/components/TextField';
@@ -32,6 +33,7 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood
   const [customName, setCustomName] = useState('');
   const [customCalories, setCustomCalories] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirmVisible, setConfirmVisible] = useState(false);
 
   const isCustom = entry ? !entry.foodId : false;
 
@@ -85,6 +87,7 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood
   }
 
   async function handleDelete() {
+    setConfirmVisible(false);
     setBusy(true);
     try {
       await onDelete();
@@ -95,14 +98,8 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood
     }
   }
 
-  function confirmDelete() {
-    Alert.alert('Delete entry?', 'This removes the entry from your log. This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: handleDelete },
-    ]);
-  }
-
   return (
+    <>
     <BottomSheet visible onClose={onClose}>
             {isCustom ? (
               <View style={styles.field}>
@@ -151,9 +148,19 @@ export function EditEntryModal({ entry, onClose, onSave, onDelete, onReplaceFood
             ) : null}
 
             <Button title="Save changes" onPress={handleSave} loading={busy} />
-            <Button title="Delete entry" variant="danger" onPress={confirmDelete} loading={busy} />
+            <Button title="Delete entry" variant="danger" onPress={() => setConfirmVisible(true)} loading={busy} />
             <Button title="Cancel" variant="ghost" onPress={onClose} />
     </BottomSheet>
+
+    <ConfirmDialog
+      visible={confirmVisible}
+      title="Delete entry?"
+      message="This removes the entry from your log. This cannot be undone."
+      confirmLabel="Delete"
+      onConfirm={handleDelete}
+      onCancel={() => setConfirmVisible(false)}
+    />
+    </>
   );
 }
 

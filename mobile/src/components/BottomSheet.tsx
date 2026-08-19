@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
-    padding: Spacing.three + 4,
+    padding: Spacing.threeAndHalf,
   },
   content: {
     gap: Spacing.two,

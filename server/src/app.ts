@@ -11,15 +11,6 @@ import historyRoutes from "./routes/history.routes";
 import eventsRoutes from "./routes/events.routes";
 import weightRoutes from "./routes/weight.routes";
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many attempts. Please try again later." },
-  skip: () => process.env.NODE_ENV === "test",
-});
-
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 1200,
@@ -42,7 +33,10 @@ export function createApp() {
 
   app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
-  app.use("/", authLimiter, authRoutes);
+  // authLimiter is applied per-route inside auth.routes.ts (login/signup
+  // only) - it must NOT be mounted here, since app.use("/", ...) matches
+  // every request path in the app, not just the auth routes.
+  app.use("/", authRoutes);
   app.use("/me", meRoutes);
   app.use("/foods", foodsRoutes);
   app.use("/entries", entriesRoutes);

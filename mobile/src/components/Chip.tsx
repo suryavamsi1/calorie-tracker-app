@@ -52,6 +52,6 @@ const styles = StyleSheet.create({
   },
   chipSm: {
     paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two + 4,
+    paddingHorizontal: Spacing.twoAndHalf,
   },
 });

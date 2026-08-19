@@ -56,7 +56,7 @@ export function FoodResultCard({ food, onPress, onQuickAdd, index = 0 }: FoodRes
             ) : (
               <View />
             )}
-            <Pressable onPress={onQuickAdd} hitSlop={8}>
+            <Pressable onPress={onQuickAdd} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Add ${food.name} to meal`}>
               <View style={[styles.addButton, { backgroundColor: theme.backgroundSelected }]}>
                 <Icon name="add" size={20} color={theme.primary} />
               </View>

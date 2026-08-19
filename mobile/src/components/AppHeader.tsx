@@ -60,8 +60,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: 64,
-    gap: Spacing.two + 4,
-    paddingHorizontal: Spacing.three + 4,
+    gap: Spacing.twoAndHalf,
+    paddingHorizontal: Spacing.threeAndHalf,
   },
   logo: {
     width: 28,

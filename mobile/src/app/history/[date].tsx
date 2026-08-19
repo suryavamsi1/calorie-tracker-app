@@ -140,7 +140,7 @@ export default function HistoryDayScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.summaryRow}>
-          <View>
+          <View style={styles.summaryLabelBlock}>
             <ThemedText type="small" themeColor="textSecondary" style={styles.summaryLabel}>
               Daily Summary
             </ThemedText>
@@ -256,6 +256,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-end',
   },
+  summaryLabelBlock: {
+    flex: 1,
+    marginRight: Spacing.two,
+  },
   summaryLabel: {
     letterSpacing: 0.3,
   },
@@ -274,7 +278,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'stretch',
     gap: Spacing.three,
-    padding: Spacing.three + 4,
+    padding: Spacing.threeAndHalf,
   },
   macroDivider: {
     width: StyleSheet.hairlineWidth,
@@ -315,8 +319,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.three,
   },
   mealHeader: {
-    paddingHorizontal: Spacing.three + 4,
-    paddingVertical: Spacing.two + 4,
+    paddingHorizontal: Spacing.threeAndHalf,
+    paddingVertical: Spacing.twoAndHalf,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   mealTitleRow: {
@@ -325,7 +329,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   mealBody: {
-    padding: Spacing.three + 4,
+    padding: Spacing.threeAndHalf,
     gap: Spacing.two,
   },
 });

@@ -402,7 +402,12 @@ function FoodDetailView({
             </ThemedText>
           ) : null}
         </View>
-        <Pressable onPress={onToggleFavorite} hitSlop={8}>
+        <Pressable
+          onPress={onToggleFavorite}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={food.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+        >
           <Icon
             name={food.isFavorite ? 'star' : 'star-outline'}
             size={22}
