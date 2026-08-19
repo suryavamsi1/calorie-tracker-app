@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuthProvider } from '@/context/AuthContext';
+import { SyncProvider } from '@/context/SyncContext';
 import { ThemeModeProvider, useThemeMode } from '@/context/ThemeContext';
 import { ToastProvider } from '@/context/ToastContext';
 
@@ -35,7 +36,9 @@ export default function RootLayout() {
       <ThemeModeProvider>
         <AuthProvider>
           <ToastProvider>
-            <NavigationThemeBridge />
+            <SyncProvider>
+              <NavigationThemeBridge />
+            </SyncProvider>
           </ToastProvider>
         </AuthProvider>
       </ThemeModeProvider>

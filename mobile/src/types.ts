@@ -52,6 +52,9 @@ export interface MealEntry {
   mealType: MealType;
   entryDate: string;
   createdAt: string;
+  /** Set locally (never sent to/from the server) while an offline mutation for this entry is queued. */
+  pendingStatus?: 'pending' | 'syncing' | 'failed';
+  pendingAction?: 'create' | 'update' | 'delete';
 }
 
 export interface HistoryDay {

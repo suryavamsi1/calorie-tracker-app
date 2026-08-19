@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,17 +17,21 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { ProgressRing } from '@/components/ProgressRing';
 import { SkeletonCard } from '@/components/Skeleton';
 import { SwipeableRow } from '@/components/SwipeableRow';
+import { SyncBanner } from '@/components/SyncBanner';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MEAL_TYPES, MEAL_TYPE_LABELS } from '@/constants/options';
 import { MacroColors, MealColors, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useSync } from '@/context/SyncContext';
 import { useThemeMode } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
 import { useTheme } from '@/hooks/use-theme';
 import { api, ApiError } from '@/lib/api';
+import { applyQueueToEntries } from '@/lib/applyQueueToEntries';
 import { getCache, setCache } from '@/lib/cache';
 import { guessMealType, todayDateString } from '@/lib/date';
+import { computeUpdatedDisplay } from '@/lib/entryDisplay';
 import type { MealEntry, MealType } from '@/types';
 
 function getMotivation(
@@ -54,7 +58,8 @@ export default function DashboardScreen() {
   const theme = useTheme();
   const { scheme } = useThemeMode();
   const toast = useToast();
-  const [entries, setEntries] = useState<MealEntry[]>([]);
+  const sync = useSync();
+  const [fetchedEntries, setFetchedEntries] = useState<MealEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MealEntry | null>(null);
@@ -66,13 +71,13 @@ export default function DashboardScreen() {
   const load = useCallback(async () => {
     try {
       const { entries: fetched } = await api.get<{ entries: MealEntry[] }>(`/entries?date=${date}`);
-      setEntries(fetched);
+      setFetchedEntries(fetched);
       setIsOffline(false);
       setCache(cacheKey, fetched);
     } catch (err) {
       const cached = await getCache<MealEntry[]>(cacheKey);
       if (cached) {
-        setEntries(cached);
+        setFetchedEntries(cached);
         setIsOffline(true);
       } else if (!(err instanceof ApiError)) {
         setIsOffline(true);
@@ -86,19 +91,33 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load])
+      sync.syncNow();
+    }, [load, sync])
+  );
+
+  // Once a queued mutation actually finishes syncing (queue shrinks), refetch
+  // so the optimistic local entry is replaced by the server's real record.
+  const prevQueueLenRef = useRef(sync.queue.length);
+  useEffect(() => {
+    if (sync.queue.length < prevQueueLenRef.current) load();
+    prevQueueLenRef.current = sync.queue.length;
+  }, [sync.queue.length, load]);
+
+  const entries = useMemo(
+    () => applyQueueToEntries(fetchedEntries, sync.queue, date),
+    [fetchedEntries, sync.queue, date]
   );
 
   async function handleRefresh() {
     setRefreshing(true);
+    sync.syncNow();
     await load();
   }
 
-  async function handleSaveEntry(updates: EntryUpdates) {
+  function handleSaveEntry(updates: EntryUpdates) {
     if (!editingEntry) return;
-    await api.put(`/entries/${editingEntry.id}`, updates);
+    sync.updateEntry(editingEntry.id, updates, computeUpdatedDisplay(editingEntry, updates));
     setEditingEntry(null);
-    await load();
     toast.show('Entry updated');
   }
 
@@ -109,12 +128,11 @@ export default function DashboardScreen() {
     router.push({ pathname: '/add-food', params: { mealType, date: entryDate, entryId: id } });
   }
 
-  async function handleDeleteEntry(entry?: MealEntry) {
+  function handleDeleteEntry(entry?: MealEntry) {
     const target = entry ?? editingEntry;
     if (!target) return;
-    await api.delete(`/entries/${target.id}`);
+    sync.deleteEntry(target.id);
     if (editingEntry?.id === target.id) setEditingEntry(null);
-    await load();
     toast.show('Entry deleted', 'info');
   }
 
@@ -152,7 +170,8 @@ export default function DashboardScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
       >
-        {isOffline ? <OfflineBanner /> : null}
+        {isOffline && sync.isOnline ? <OfflineBanner /> : null}
+        <SyncBanner />
 
         {loading ? (
           <>

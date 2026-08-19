@@ -14,15 +14,19 @@ import { FoodResultCard } from '@/components/FoodResultCard';
 import { Icon, type IconName } from '@/components/Icon';
 import { MacroBar } from '@/components/MacroBar';
 import { QuantityStepper } from '@/components/QuantityStepper';
+import { SyncBanner } from '@/components/SyncBanner';
 import { TextField } from '@/components/TextField';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MEAL_TYPES, MEAL_TYPE_LABELS } from '@/constants/options';
 import { MealColors, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useSync } from '@/context/SyncContext';
 import { useToast } from '@/context/ToastContext';
 import { api } from '@/lib/api';
 import { track } from '@/lib/analytics';
+import { getCache, setCache } from '@/lib/cache';
+import { round1 } from '@/lib/entryDisplay';
 import type { Food, MealType } from '@/types';
 
 type Mode = 'search' | 'quick' | 'custom';
@@ -44,6 +48,7 @@ export default function AddFoodScreen() {
 
       <View style={styles.body}>
         <MealTypeSelector value={mealType} onChange={setMealType} />
+        <SyncBanner />
 
         <View style={styles.tabs}>
           <Chip label="Search" selected={mode === 'search'} onPress={() => setMode('search')} size="sm" />
@@ -112,6 +117,7 @@ function SearchTab({
 }) {
   const toast = useToast();
   const theme = useTheme();
+  const sync = useSync();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Food[]>([]);
   const [recentFoods, setRecentFoods] = useState<Food[]>([]);
@@ -123,7 +129,6 @@ function SearchTab({
   const [providerError, setProviderError] = useState(false);
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [quantity, setQuantity] = useState('1');
-  const [saving, setSaving] = useState(false);
 
   function loadRecentAndFavorites() {
     api
@@ -131,20 +136,36 @@ function SearchTab({
       .then(({ foods }) => {
         setRecentFoods(foods);
         setBrowseError(false);
+        setCache('foods:recent', foods);
       })
-      .catch(() => {
-        setRecentFoods([]);
-        setBrowseError(true);
+      .catch(async () => {
+        // Offline: fall back to the last cached list so users can still tap
+        // a previously-seen food to log it (rather than a hard error state).
+        const cached = await getCache<Food[]>('foods:recent');
+        if (cached) {
+          setRecentFoods(cached);
+          setBrowseError(false);
+        } else {
+          setRecentFoods([]);
+          setBrowseError(true);
+        }
       });
     api
       .get<{ foods: Food[] }>('/foods/favorites')
       .then(({ foods }) => {
         setFavoriteFoods(foods);
         setBrowseError(false);
+        setCache('foods:favorites', foods);
       })
-      .catch(() => {
-        setFavoriteFoods([]);
-        setBrowseError(true);
+      .catch(async () => {
+        const cached = await getCache<Food[]>('foods:favorites');
+        if (cached) {
+          setFavoriteFoods(cached);
+          setBrowseError(false);
+        } else {
+          setFavoriteFoods([]);
+          setBrowseError(true);
+        }
       });
   }
 
@@ -200,39 +221,42 @@ function SearchTab({
     };
   }
 
-  async function logFood(food: Food, qty: number) {
+  function logFood(food: Food, qty: number) {
     if (!qty || qty <= 0) {
       toast.show('Enter a valid quantity', 'error');
       return;
     }
-    setSaving(true);
-    try {
-      const providerFood = providerFoodPayload(food);
-      if (entryId) {
-        await api.put(`/entries/${entryId}`, {
-          ...(providerFood ? { providerFood } : { foodId: food.id }),
-          quantity: qty,
-          mealType,
-          entryDate: date,
-        });
-        toast.show('Entry updated');
-      } else {
-        await api.post('/entries', {
-          date,
-          mealType,
-          quantity: qty,
-          ...(providerFood ? { providerFood } : { foodId: food.id }),
-        });
-        toast.show(`Added to ${MEAL_TYPE_LABELS[mealType].toLowerCase()}`);
-        track('food_logged', { method: 'search', mealType });
-      }
-      router.back();
-    } catch {
-      toast.show("Couldn't save this entry. Check your connection.", 'error');
-    } finally {
-      setSaving(false);
+    const providerFood = providerFoodPayload(food);
+    const display = {
+      foodName: food.name,
+      servingSize: food.servingSize,
+      servingUnit: food.servingUnit,
+      calories: Math.round(food.calories * qty),
+      proteinG: round1(food.proteinG * qty),
+      carbsG: round1(food.carbsG * qty),
+      fatG: round1(food.fatG * qty),
+    };
+    if (entryId) {
+      sync.updateEntry(
+        entryId,
+        { ...(providerFood ? { providerFood } : { foodId: food.id }), quantity: qty, mealType, entryDate: date },
+        display
+      );
+      toast.show('Entry updated');
+    } else {
+      sync.createEntry({
+        mealType,
+        quantity: qty,
+        entryDate: date,
+        ...(providerFood ? { providerFood } : { foodId: food.id }),
+        display,
+      });
+      toast.show(`Added to ${MEAL_TYPE_LABELS[mealType].toLowerCase()}`);
+      track('food_logged', { method: 'search', mealType });
     }
+    router.back();
   }
+
 
   function updateFoodInLists(foodId: string, patch: Partial<Food>) {
     const apply = (list: Food[]) => list.map((f) => (f.id === foodId ? { ...f, ...patch } : f));
@@ -289,7 +313,7 @@ function SearchTab({
         onToggleFavorite={() => toggleFavorite(selectedFood)}
         onSave={() => logFood(selectedFood, Number(quantity) || 1)}
         onBack={() => setSelectedFood(null)}
-        saving={saving}
+        saving={false}
         isEditing={Boolean(entryId)}
       />
     );
@@ -553,43 +577,31 @@ function FoodDetailView({
 
 function QuickAddTab({ mealType, date, entryId }: { mealType: MealType; date: string; entryId?: string }) {
   const toast = useToast();
+  const sync = useSync();
   const [name, setName] = useState('');
   const [calories, setCalories] = useState('');
-  const [saving, setSaving] = useState(false);
 
-  async function handleSave() {
+  function handleSave() {
     const cals = Number(calories);
     if (!cals || cals <= 0) {
       toast.show('Enter how many calories this is', 'error');
       return;
     }
-    setSaving(true);
-    try {
-      if (entryId) {
-        await api.put(`/entries/${entryId}`, {
-          mealType,
-          entryDate: date,
-          customFoodName: name.trim() || 'Quick add',
-          customCalories: cals,
-        });
-        toast.show('Entry updated');
-      } else {
-        await api.post('/entries', {
-          date,
-          mealType,
-          quantity: 1,
-          customFoodName: name.trim() || 'Quick add',
-          customCalories: cals,
-        });
-        toast.show(`Added to ${MEAL_TYPE_LABELS[mealType].toLowerCase()}`);
-        track('food_logged', { method: 'quick_add', mealType });
-      }
-      router.back();
-    } catch {
-      toast.show("Couldn't save this entry. Check your connection.", 'error');
-    } finally {
-      setSaving(false);
+    const foodName = name.trim() || 'Quick add';
+    const display = { foodName, servingSize: 1, servingUnit: 'serving', calories: cals, proteinG: null, carbsG: null, fatG: null };
+    if (entryId) {
+      sync.updateEntry(
+        entryId,
+        { mealType, entryDate: date, customFoodName: foodName, customCalories: cals },
+        display
+      );
+      toast.show('Entry updated');
+    } else {
+      sync.createEntry({ mealType, quantity: 1, entryDate: date, customFoodName: foodName, customCalories: cals, display });
+      toast.show(`Added to ${MEAL_TYPE_LABELS[mealType].toLowerCase()}`);
+      track('food_logged', { method: 'quick_add', mealType });
     }
+    router.back();
   }
 
   return (
@@ -599,13 +611,14 @@ function QuickAddTab({ mealType, date, entryId }: { mealType: MealType; date: st
       </ThemedText>
       <TextField label="Food name (optional)" value={name} onChangeText={setName} placeholder="Snack" />
       <TextField label="Calories" keyboardType="number-pad" value={calories} onChangeText={setCalories} />
-      <Button title={entryId ? 'Save changes' : 'Add to meal'} onPress={handleSave} loading={saving} />
+      <Button title={entryId ? 'Save changes' : 'Add to meal'} onPress={handleSave} />
     </Card>
   );
 }
 
 function CustomFoodTab({ mealType, date, entryId }: { mealType: MealType; date: string; entryId?: string }) {
   const toast = useToast();
+  const sync = useSync();
   const [name, setName] = useState('');
   const [servingSize, setServingSize] = useState('1');
   const [servingUnit, setServingUnit] = useState('serving');
@@ -615,6 +628,10 @@ function CustomFoodTab({ mealType, date, entryId }: { mealType: MealType; date: 
   const [fat, setFat] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Creating a brand-new custom food requires the network (it's out of scope
+  // for the offline queue - see Offline Actions MVP). Logging an ENTRY
+  // against the resulting foodId, though, goes through the queue like any
+  // other entry, so it's consistent with the rest of the app.
   async function handleSave() {
     if (!name.trim()) {
       toast.show('Enter a food name', 'error');
@@ -635,11 +652,20 @@ function CustomFoodTab({ mealType, date, entryId }: { mealType: MealType; date: 
         carbsG: Number(carbs) || 0,
         fatG: Number(fat) || 0,
       });
+      const display = {
+        foodName: food.name,
+        servingSize: food.servingSize,
+        servingUnit: food.servingUnit,
+        calories: food.calories,
+        proteinG: food.proteinG,
+        carbsG: food.carbsG,
+        fatG: food.fatG,
+      };
       if (entryId) {
-        await api.put(`/entries/${entryId}`, { foodId: food.id, mealType, entryDate: date });
+        sync.updateEntry(entryId, { foodId: food.id, mealType, entryDate: date }, display);
         toast.show('Entry updated');
       } else {
-        await api.post('/entries', { date, mealType, foodId: food.id, quantity: 1 });
+        sync.createEntry({ mealType, quantity: 1, entryDate: date, foodId: food.id, display });
         toast.show(`Added to ${MEAL_TYPE_LABELS[mealType].toLowerCase()}`);
         track('food_logged', { method: 'custom', mealType });
       }

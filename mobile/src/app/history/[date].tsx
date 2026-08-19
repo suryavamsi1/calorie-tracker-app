@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -14,14 +14,18 @@ import { Icon } from '@/components/Icon';
 import { ProgressBar } from '@/components/ProgressBar';
 import { SkeletonCard } from '@/components/Skeleton';
 import { SwipeableRow } from '@/components/SwipeableRow';
+import { SyncBanner } from '@/components/SyncBanner';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MEAL_TYPES, MEAL_TYPE_LABELS } from '@/constants/options';
 import { MacroColors, MealColors, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useSync } from '@/context/SyncContext';
 import { useToast } from '@/context/ToastContext';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
+import { applyQueueToEntries } from '@/lib/applyQueueToEntries';
+import { computeUpdatedDisplay } from '@/lib/entryDisplay';
 import { formatDisplayDate } from '@/lib/date';
 import type { HistoryDayDetail, MealEntry, MealType } from '@/types';
 
@@ -48,6 +52,7 @@ export default function HistoryDayScreen() {
   const theme = useTheme();
   const { user } = useAuth();
   const toast = useToast();
+  const sync = useSync();
   const [detail, setDetail] = useState<HistoryDayDetail | null>(null);
   const [editingEntry, setEditingEntry] = useState<MealEntry | null>(null);
   const [error, setError] = useState(false);
@@ -66,14 +71,31 @@ export default function HistoryDayScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load])
+      sync.syncNow();
+    }, [load, sync])
   );
 
-  async function handleSaveEntry(updates: EntryUpdates) {
+  // Once a queued mutation actually finishes syncing (queue shrinks), refetch
+  // so the optimistic local entry is replaced by the server's real record.
+  const prevQueueLenRef = useRef(sync.queue.length);
+  useEffect(() => {
+    if (sync.queue.length < prevQueueLenRef.current) load();
+    prevQueueLenRef.current = sync.queue.length;
+  }, [sync.queue.length, load]);
+
+  const baseEntries = useMemo<MealEntry[]>(
+    () => (detail ? detail.entries.map((e) => toMealEntry(e, detail.date)) : []),
+    [detail]
+  );
+  const entries = useMemo(
+    () => (date ? applyQueueToEntries(baseEntries, sync.queue, date) : baseEntries),
+    [baseEntries, sync.queue, date]
+  );
+
+  function handleSaveEntry(updates: EntryUpdates) {
     if (!editingEntry) return;
-    await api.put(`/entries/${editingEntry.id}`, updates);
+    sync.updateEntry(editingEntry.id, updates, computeUpdatedDisplay(editingEntry, updates));
     setEditingEntry(null);
-    await load();
     toast.show('Entry updated');
   }
 
@@ -84,12 +106,11 @@ export default function HistoryDayScreen() {
     router.push({ pathname: '/add-food', params: { mealType, date: entryDate, entryId: id } });
   }
 
-  async function handleDeleteEntry(entry?: MealEntry) {
+  function handleDeleteEntry(entry?: MealEntry) {
     const target = entry ?? editingEntry;
     if (!target) return;
-    await api.delete(`/entries/${target.id}`);
+    sync.deleteEntry(target.id);
     if (editingEntry?.id === target.id) setEditingEntry(null);
-    await load();
     toast.show('Entry deleted', 'info');
   }
 
@@ -120,17 +141,22 @@ export default function HistoryDayScreen() {
     );
   }
 
-  const entriesByMeal: Record<MealType, HistoryDayDetail['entries']> = {
+  const entriesByMeal: Record<MealType, MealEntry[]> = {
     breakfast: [],
     lunch: [],
     dinner: [],
     snacks: [],
   };
-  for (const entry of detail.entries) {
+  for (const entry of entries) {
     entriesByMeal[entry.mealType]?.push(entry);
   }
 
-  const overGoal = detail.remainingCalories !== null && detail.remainingCalories < 0;
+  const totalCalories = entries.reduce((sum, e) => sum + e.calories, 0);
+  const totalProteinG = entries.reduce((sum, e) => sum + (e.proteinG ?? 0), 0);
+  const totalCarbsG = entries.reduce((sum, e) => sum + (e.carbsG ?? 0), 0);
+  const totalFatG = entries.reduce((sum, e) => sum + (e.fatG ?? 0), 0);
+  const remainingCalories = detail.calorieGoal !== null ? detail.calorieGoal - totalCalories : null;
+  const overGoal = remainingCalories !== null && remainingCalories < 0;
 
   return (
     <ThemedView style={styles.flex}>
@@ -139,6 +165,8 @@ export default function HistoryDayScreen() {
       </SafeAreaView>
 
       <ScrollView contentContainerStyle={styles.content}>
+        <SyncBanner />
+
         <View style={styles.summaryRow}>
           <View style={styles.summaryLabelBlock}>
             <ThemedText type="small" themeColor="textSecondary" style={styles.summaryLabel}>
@@ -148,7 +176,7 @@ export default function HistoryDayScreen() {
           </View>
           <View style={styles.summaryTotals}>
             <ThemedText type="display" style={styles.summaryTotal} themeColor={overGoal ? 'danger' : 'primary'}>
-              {detail.totalCalories.toLocaleString()}
+              {totalCalories.toLocaleString()}
             </ThemedText>
             {detail.calorieGoal !== null ? (
               <ThemedText type="small" themeColor="textSecondary">
@@ -160,15 +188,15 @@ export default function HistoryDayScreen() {
 
         <Animated.View entering={FadeInDown.duration(350)}>
           <Card style={styles.macroCard}>
-            <DayMacroColumn label="PRO" valueG={detail.totalProteinG} goalG={user?.dailyProteinGoal ?? null} color={MacroColors.protein} />
+            <DayMacroColumn label="PRO" valueG={totalProteinG} goalG={user?.dailyProteinGoal ?? null} color={MacroColors.protein} />
             <View style={[styles.macroDivider, { backgroundColor: theme.border }]} />
-            <DayMacroColumn label="CARB" valueG={detail.totalCarbsG} goalG={user?.dailyCarbsGoal ?? null} color={MacroColors.carbs} />
+            <DayMacroColumn label="CARB" valueG={totalCarbsG} goalG={user?.dailyCarbsGoal ?? null} color={MacroColors.carbs} />
             <View style={[styles.macroDivider, { backgroundColor: theme.border }]} />
-            <DayMacroColumn label="FAT" valueG={detail.totalFatG} goalG={user?.dailyFatGoal ?? null} color={MacroColors.fat} />
+            <DayMacroColumn label="FAT" valueG={totalFatG} goalG={user?.dailyFatGoal ?? null} color={MacroColors.fat} />
           </Card>
         </Animated.View>
 
-        {detail.entries.length === 0 ? (
+        {entries.length === 0 ? (
           <Card>
             <EmptyState icon="file-tray-outline" title="No foods logged" subtitle="This day doesn't have any entries." />
           </Card>
@@ -198,13 +226,10 @@ export default function HistoryDayScreen() {
                     {mealEntries.map((entry) => (
                       <SwipeableRow
                         key={entry.id}
-                        onEdit={() => setEditingEntry(toMealEntry(entry, detail.date))}
-                        onDelete={() => handleDeleteEntry(toMealEntry(entry, detail.date))}
+                        onEdit={() => setEditingEntry(entry)}
+                        onDelete={() => handleDeleteEntry(entry)}
                       >
-                        <EntryRow
-                          entry={toMealEntry(entry, detail.date)}
-                          onPress={() => setEditingEntry(toMealEntry(entry, detail.date))}
-                        />
+                        <EntryRow entry={entry} onPress={() => setEditingEntry(entry)} />
                       </SwipeableRow>
                     ))}
                   </View>
