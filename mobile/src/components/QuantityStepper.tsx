@@ -28,8 +28,10 @@ export function QuantityStepper({ value, onChangeText, onDecrement, onIncrement 
         keyboardType="decimal-pad"
         value={value}
         onChangeText={onChangeText}
-        style={styles.stepperInput}
+        containerStyle={styles.stepperInput}
+        style={styles.stepperInputText}
         textAlign="center"
+        bare
       />
       <Pressable
         onPress={onIncrement}
@@ -57,7 +59,12 @@ const styles = StyleSheet.create({
   },
   stepperInput: {
     flex: 1,
+    minWidth: 0,
     marginVertical: 0,
+    justifyContent: 'center',
+  },
+  stepperInputText: {
     textAlign: 'center',
+    paddingVertical: 0,
   },
 });

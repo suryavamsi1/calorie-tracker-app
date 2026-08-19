@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+import { StyleSheet, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 
 import { Icon, type IconName } from '@/components/Icon';
 import { ThemedText } from '@/components/themed-text';
@@ -13,21 +13,27 @@ export interface TextFieldProps extends TextInputProps {
   icon?: IconName;
   /** Optional trailing element, e.g. a password visibility toggle. */
   rightAccessory?: ReactNode;
+  /** Style applied to the outer wrapper (e.g. to let it grow inside a row, like QuantityStepper). */
+  containerStyle?: StyleProp<ViewStyle>;
+  /** Strips the input's own background/border so it blends into a parent surface (e.g. QuantityStepper's pill). */
+  bare?: boolean;
 }
 
-export function TextField({ label, error, icon, rightAccessory, style, ...rest }: TextFieldProps) {
+export function TextField({ label, error, icon, rightAccessory, containerStyle, bare, style, ...rest }: TextFieldProps) {
   const theme = useTheme();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, containerStyle]}>
       {label ? <ThemedText type="smallBold">{label}</ThemedText> : null}
       <View
         style={[
           styles.inputWrapper,
-          {
-            backgroundColor: theme.backgroundElement,
-            borderColor: error ? theme.danger : 'transparent',
-          },
+          bare
+            ? styles.bareWrapper
+            : {
+                backgroundColor: theme.backgroundElement,
+                borderColor: error ? theme.danger : 'transparent',
+              },
         ]}
       >
         {icon ? <Icon name={icon} size={20} color={theme.textSecondary} /> : null}
@@ -59,6 +65,11 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     borderWidth: 1,
     paddingHorizontal: Spacing.three,
+  },
+  bareWrapper: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    paddingHorizontal: 0,
   },
   input: {
     flex: 1,
