@@ -1,20 +1,7 @@
 import { env } from "../env";
+import { ProviderUnavailableError, type FoodProviderClient, type NormalizedProviderFood } from "./foodProviderTypes";
 
-export interface NormalizedProviderFood {
-  provider: "edamam";
-  externalId: string;
-  name: string;
-  brand: string | null;
-  servingSize: number;
-  servingUnit: string;
-  calories: number;
-  proteinG: number;
-  carbsG: number;
-  fatG: number;
-}
-
-/** Thrown for any provider failure (missing credentials, network error, non-2xx, bad shape) so callers can fall back to local-only results. */
-export class ProviderUnavailableError extends Error {}
+export { ProviderUnavailableError };
 
 interface EdamamNutrients {
   ENERC_KCAL?: number;
@@ -123,3 +110,5 @@ export async function searchEdamamFoods(query: string, limit = 20): Promise<Norm
   }
   return results;
 }
+
+export const edamamClient: FoodProviderClient = { search: searchEdamamFoods };

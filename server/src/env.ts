@@ -7,8 +7,15 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(1).default("dev-secret-change-me"),
   JWT_EXPIRES_IN: z.string().default("30d"),
   DATABASE_PATH: z.string().default("./data/calorie-tracker.db"),
-  // Optional: external food search provider (Edamam Food Database API).
-  // When unset, /foods/search gracefully falls back to local-only results.
+  // Which external food-search provider /foods/search uses. USDA works with
+  // zero setup (falls back to the public DEMO_KEY), so it's the default.
+  FOOD_PROVIDER: z.enum(["usda", "edamam"]).default("usda"),
+  // Optional: free (fdc.nal.usda.gov/api-key-signup) - without this, USDA
+  // search still works via the shared DEMO_KEY, just at a much lower rate
+  // limit (30 req/hour vs 1000 req/hour with your own key).
+  USDA_API_KEY: z.string().optional(),
+  // Optional: paid provider, only used when FOOD_PROVIDER=edamam. When
+  // unset, /foods/search gracefully falls back to local-only results.
   EDAMAM_APP_ID: z.string().optional(),
   EDAMAM_APP_KEY: z.string().optional(),
 });

@@ -2,11 +2,11 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createTestApp } from "./helpers";
 
-// Mock the Edamam client so these tests are deterministic and don't require
-// real network access or API credentials.
-vi.mock("../src/services/edamamClient", () => ({
-  ProviderUnavailableError: class ProviderUnavailableError extends Error {},
-  searchEdamamFoods: vi.fn(async (query: string) => {
+// Mock the provider dispatcher (not a specific client) so these tests stay
+// valid regardless of which provider (USDA/Edamam/future) is active, are
+// deterministic, and don't require real network access or API credentials.
+vi.mock("../src/services/foodProvider", () => ({
+  searchProviderFoods: vi.fn(async (query: string) => {
     if (query === "throw") throw new Error("boom");
     return [
       {

@@ -4,7 +4,8 @@ import { db } from "../db";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
 import { generateId } from "../utils/id";
 import { resolveProviderFood } from "../utils/foodImport";
-import { searchEdamamFoods, ProviderUnavailableError } from "../services/edamamClient";
+import { searchProviderFoods } from "../services/foodProvider";
+import { ProviderUnavailableError } from "../services/foodProviderTypes";
 
 const router = Router();
 
@@ -103,7 +104,7 @@ router.get("/search", requireAuth, async (req: AuthedRequest, res) => {
   let providerError = false;
   let providerFoods: Array<ReturnType<typeof toPublicFood> & { provider?: string; externalId?: string }> = [];
   try {
-    const results = await searchEdamamFoods(query);
+    const results = await searchProviderFoods(query);
     providerFoods = results
       .filter((r) => !importedExternalIds.has(`${r.provider}:${r.externalId}`))
       .map((r) => ({
@@ -124,7 +125,7 @@ router.get("/search", requireAuth, async (req: AuthedRequest, res) => {
   } catch (err) {
     providerError = true;
     if (!(err instanceof ProviderUnavailableError)) {
-      console.error("Unexpected error searching Edamam:", err);
+      console.error("Unexpected error searching food provider:", err);
     }
   }
 
