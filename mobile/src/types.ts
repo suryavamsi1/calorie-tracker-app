@@ -32,6 +32,9 @@ export interface Food {
   carbsG: number;
   fatG: number;
   source: string;
+  /** Only present for not-yet-imported provider search results (source === 'provider'). */
+  provider?: string;
+  externalId?: string;
   isFavorite: boolean;
 }
 

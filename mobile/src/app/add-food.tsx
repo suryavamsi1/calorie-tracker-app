@@ -111,6 +111,7 @@ function SearchTab({
   entryId?: string;
 }) {
   const toast = useToast();
+  const theme = useTheme();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Food[]>([]);
   const [recentFoods, setRecentFoods] = useState<Food[]>([]);
@@ -119,6 +120,7 @@ function SearchTab({
   const [browseError, setBrowseError] = useState(false);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState(false);
+  const [providerError, setProviderError] = useState(false);
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [quantity, setQuantity] = useState('1');
   const [saving, setSaving] = useState(false);
@@ -154,24 +156,49 @@ function SearchTab({
     if (!query) {
       setResults([]);
       setSearchError(false);
+      setProviderError(false);
       return;
     }
     setSearching(true);
     const handle = setTimeout(async () => {
       try {
-        const { foods } = await api.get<{ foods: Food[] }>(`/foods?query=${encodeURIComponent(query)}`);
+        const { foods, providerError: providerFailed } = await api.get<{ foods: Food[]; providerError?: boolean }>(
+          `/foods/search?query=${encodeURIComponent(query)}`
+        );
         setResults(foods);
         setSearchError(false);
+        setProviderError(Boolean(providerFailed));
         track('search_performed', { resultCount: foods.length });
       } catch {
         setResults([]);
         setSearchError(true);
+        setProviderError(false);
       } finally {
         setSearching(false);
       }
     }, 250);
     return () => clearTimeout(handle);
   }, [query]);
+
+  // Provider-sourced foods (not-yet-imported search results) need their full
+  // normalized snapshot sent along so the server can import it on first use
+  // (see resolveProviderFood) - safe to always include when present, the
+  // server dedupes by provider+externalId instead of creating duplicates.
+  function providerFoodPayload(food: Food) {
+    if (food.source !== 'provider' || !food.provider || !food.externalId) return undefined;
+    return {
+      provider: food.provider,
+      externalId: food.externalId,
+      name: food.name,
+      brand: food.brand,
+      servingSize: food.servingSize,
+      servingUnit: food.servingUnit,
+      calories: food.calories,
+      proteinG: food.proteinG,
+      carbsG: food.carbsG,
+      fatG: food.fatG,
+    };
+  }
 
   async function logFood(food: Food, qty: number) {
     if (!qty || qty <= 0) {
@@ -180,11 +207,22 @@ function SearchTab({
     }
     setSaving(true);
     try {
+      const providerFood = providerFoodPayload(food);
       if (entryId) {
-        await api.put(`/entries/${entryId}`, { foodId: food.id, quantity: qty, mealType, entryDate: date });
+        await api.put(`/entries/${entryId}`, {
+          ...(providerFood ? { providerFood } : { foodId: food.id }),
+          quantity: qty,
+          mealType,
+          entryDate: date,
+        });
         toast.show('Entry updated');
       } else {
-        await api.post('/entries', { date, mealType, foodId: food.id, quantity: qty });
+        await api.post('/entries', {
+          date,
+          mealType,
+          quantity: qty,
+          ...(providerFood ? { providerFood } : { foodId: food.id }),
+        });
         toast.show(`Added to ${MEAL_TYPE_LABELS[mealType].toLowerCase()}`);
         track('food_logged', { method: 'search', mealType });
       }
@@ -219,7 +257,19 @@ function SearchTab({
         await api.delete(`/foods/${food.id}/favorite`);
         setFavoriteFoods((list) => list.filter((f) => f.id !== food.id));
       } else {
-        await api.post(`/foods/${food.id}/favorite`);
+        const providerFood = providerFoodPayload(food);
+        const { food: imported } = await api.post<{ food: Food }>(
+          `/foods/${encodeURIComponent(food.id)}/favorite`,
+          providerFood
+        );
+        // Provider results carry a synthetic id until first used - swap it
+        // for the real imported id so a later unfavorite/log targets the
+        // right row instead of a placeholder reference.
+        if (imported.id !== food.id) {
+          updateFoodInLists(food.id, { id: imported.id, isFavorite: true });
+          setFavoriteFoods((list) => list.map((f) => (f.id === food.id ? { ...f, id: imported.id } : f)));
+          setSelectedFood((current) => (current?.id === food.id ? { ...current, id: imported.id } : current));
+        }
         toast.show('Added to favorites');
       }
     } catch {
@@ -277,6 +327,14 @@ function SearchTab({
         {query ? `Results for "${query}"` : browseTab === 'recent' ? 'Recent' : 'Favorites'}
       </ThemedText>
 
+      {query && providerError && !searching && results.length > 0 ? (
+        <View style={[styles.providerErrorBanner, { backgroundColor: theme.warningSoft }]}>
+          <ThemedText type="caption" themeColor="warning" style={styles.providerErrorText}>
+            Live food search is unavailable right now — showing your saved foods.
+          </ThemedText>
+        </View>
+      ) : null}
+
       <FlatList
         data={list}
         keyExtractor={(item) => item.id}
@@ -312,6 +370,12 @@ function SearchTab({
               icon="alert-circle-outline"
               title="Couldn't search right now"
               subtitle="Check your connection and try again."
+            />
+          ) : query && !searching && providerError ? (
+            <EmptyState
+              icon="alert-circle-outline"
+              title="Live search is unavailable"
+              subtitle="We couldn't reach the food database. Try quick add or create a custom food instead."
             />
           ) : query && !searching ? (
             <EmptyState
@@ -639,6 +703,14 @@ const styles = StyleSheet.create({
     marginTop: Spacing.one,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
+  },
+  providerErrorBanner: {
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.three,
+  },
+  providerErrorText: {
+    textAlign: 'center',
   },
   browseTabsRow: {
     flexDirection: 'row',

@@ -3,10 +3,24 @@ import { z } from "zod";
 import { db } from "../db";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
 import { generateId } from "../utils/id";
+import { resolveProviderFood } from "../utils/foodImport";
 
 const router = Router();
 
 const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snacks"] as const;
+
+const providerFoodSchema = z.object({
+  provider: z.string().min(1),
+  externalId: z.string().min(1),
+  name: z.string().min(1),
+  brand: z.string().nullable().optional(),
+  servingSize: z.number().positive(),
+  servingUnit: z.string().min(1),
+  calories: z.number().min(0),
+  proteinG: z.number().min(0),
+  carbsG: z.number().min(0),
+  fatG: z.number().min(0),
+});
 
 interface EntryRow {
   id: string;
@@ -87,12 +101,14 @@ const createEntrySchema = z
     mealType: z.enum(MEAL_TYPES),
     quantity: z.number().positive().default(1),
     foodId: z.string().optional(),
+    providerFood: providerFoodSchema.optional(),
     customFoodName: z.string().optional(),
     customCalories: z.number().int().min(0).optional(),
   })
-  .refine((data) => data.foodId || (data.customFoodName && data.customCalories !== undefined), {
-    message: "Either foodId or (customFoodName and customCalories) must be provided",
-  });
+  .refine(
+    (data) => data.foodId || data.providerFood || (data.customFoodName && data.customCalories !== undefined),
+    { message: "Either foodId, providerFood, or (customFoodName and customCalories) must be provided" }
+  );
 
 // POST /entries
 router.post("/", requireAuth, (req: AuthedRequest, res) => {
@@ -100,9 +116,12 @@ router.post("/", requireAuth, (req: AuthedRequest, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
   }
-  const { date, mealType, quantity, foodId, customFoodName, customCalories } = parsed.data;
+  const { date, mealType, quantity, providerFood, customFoodName, customCalories } = parsed.data;
+  let { foodId } = parsed.data;
 
-  if (foodId) {
+  if (providerFood) {
+    foodId = resolveProviderFood(providerFood);
+  } else if (foodId) {
     const food = fetchFood(foodId);
     if (!food) return res.status(404).json({ error: "Food not found" });
   }
@@ -132,6 +151,7 @@ const updateEntrySchema = z.object({
   quantity: z.number().positive().optional(),
   entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "entryDate must be YYYY-MM-DD").optional(),
   foodId: z.string().optional(),
+  providerFood: providerFoodSchema.optional(),
   customFoodName: z.string().min(1).optional(),
   customCalories: z.number().int().min(0).optional(),
 });
@@ -151,13 +171,17 @@ router.put("/:id", requireAuth, (req: AuthedRequest, res) => {
     .get(req.params.id, req.userId) as EntryRow | undefined;
   if (!existing) return res.status(404).json({ error: "Entry not found" });
 
-  const { mealType, quantity, entryDate, foodId, customFoodName, customCalories } = parsed.data;
+  const { mealType, quantity, entryDate, foodId, providerFood, customFoodName, customCalories } = parsed.data;
 
   let nextFoodId = existing.food_id;
   let nextCustomName = existing.custom_food_name;
   let nextCustomCalories = existing.custom_calories;
 
-  if (foodId !== undefined) {
+  if (providerFood) {
+    nextFoodId = resolveProviderFood(providerFood);
+    nextCustomName = null;
+    nextCustomCalories = null;
+  } else if (foodId !== undefined) {
     const food = fetchFood(foodId);
     if (!food) return res.status(404).json({ error: "Food not found" });
     nextFoodId = foodId;

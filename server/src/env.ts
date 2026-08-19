@@ -7,6 +7,10 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(1).default("dev-secret-change-me"),
   JWT_EXPIRES_IN: z.string().default("30d"),
   DATABASE_PATH: z.string().default("./data/calorie-tracker.db"),
+  // Optional: external food search provider (Edamam Food Database API).
+  // When unset, /foods/search gracefully falls back to local-only results.
+  EDAMAM_APP_ID: z.string().optional(),
+  EDAMAM_APP_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

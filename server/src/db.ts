@@ -48,6 +48,8 @@ export function initDb() {
       carbs_g REAL NOT NULL DEFAULT 0,
       fat_g REAL NOT NULL DEFAULT 0,
       source TEXT NOT NULL DEFAULT 'curated',
+      provider TEXT,
+      external_id TEXT,
       created_by_user_id TEXT REFERENCES users(id) ON DELETE CASCADE
     );
 
@@ -99,6 +101,14 @@ export function initDb() {
   `);
 
   migrateAddMacroColumns();
+
+  // Must run AFTER the migration above - on a pre-existing database the
+  // foods table won't have provider/external_id yet until addColumnIfMissing
+  // adds them, and this index references those columns.
+  db.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_foods_provider_external
+     ON foods(provider, external_id) WHERE provider IS NOT NULL;`
+  );
 }
 
 // Lightweight migration for databases created before macro tracking was added:
@@ -108,6 +118,8 @@ function migrateAddMacroColumns() {
   addColumnIfMissing("foods", "protein_g", "REAL NOT NULL DEFAULT 0");
   addColumnIfMissing("foods", "carbs_g", "REAL NOT NULL DEFAULT 0");
   addColumnIfMissing("foods", "fat_g", "REAL NOT NULL DEFAULT 0");
+  addColumnIfMissing("foods", "provider", "TEXT");
+  addColumnIfMissing("foods", "external_id", "TEXT");
   addColumnIfMissing("users", "daily_protein_goal", "REAL");
   addColumnIfMissing("users", "daily_carbs_goal", "REAL");
   addColumnIfMissing("users", "daily_fat_goal", "REAL");
