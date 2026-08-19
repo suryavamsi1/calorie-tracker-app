@@ -46,6 +46,26 @@ The app reads the API base URL from `mobile/.env` (`EXPO_PUBLIC_API_URL`):
 > device, or check which SDK your installed Expo Go supports and align this project's
 > `expo` version to it (see `mobile/package.json`).
 
+### Food provider config
+
+`GET /foods/search` merges local foods with live results from an external provider,
+selected via `server/.env`:
+
+```
+FOOD_PROVIDER=usda        # usda (free, default) | edamam (paid)
+USDA_API_KEY=             # optional — free, instant signup at fdc.nal.usda.gov/api-key-signup
+                          # falls back to the public DEMO_KEY (30 req/hour) if unset
+EDAMAM_APP_ID=            # only used when FOOD_PROVIDER=edamam
+EDAMAM_APP_KEY=
+```
+
+USDA FoodData Central works out of the box with zero signup via the public `DEMO_KEY`;
+add your own free key to raise the rate limit to 1000 req/hour. Edamam is kept as an
+alternate provider (better branded/regional coverage, but paid) — switch to it by setting
+`FOOD_PROVIDER=edamam` and filling in `EDAMAM_APP_ID`/`EDAMAM_APP_KEY`. Adding a new
+provider later just means implementing the `FoodProviderClient` interface in
+`server/src/services/` and registering it in `server/src/services/foodProvider.ts`.
+
 ## API overview
 
 Base routes exposed by `server/` (see `server/src/routes/`). All routes except
@@ -63,19 +83,32 @@ Base routes exposed by `server/` (see `server/src/routes/`). All routes except
 ### Foods — `foods.routes.ts`
 - `GET /foods?query=` — search the curated + user's custom foods (includes `isFavorite`,
   `proteinG`, `carbsG`, `fatG`)
+- `GET /foods/search?query=` — unified search: local foods (curated/custom/already-
+  imported provider foods) plus live results from the active external provider (`usda`
+  by default, `edamam` optional — see [Food provider config](#food-provider-config)).
+  Not-yet-imported provider results carry a synthetic id (`provider:<provider>:<id>`)
+  until first logged/favorited. Returns `{ foods, providerError }` — `providerError` is
+  `true` if the provider call failed for any reason, but local results are still
+  returned so the endpoint never hard-fails.
 - `GET /foods/recent?limit=` — most recently logged foods, deduped
 - `GET /foods/favorites` — the user's starred foods
-- `POST /foods/:id/favorite`, `DELETE /foods/:id/favorite` — star/unstar a food
+- `POST /foods/:id/favorite`, `DELETE /foods/:id/favorite` — star/unstar a food. When
+  `:id` is a not-yet-imported provider food, the request body must include the full
+  provider food snapshot; the server imports it into the local DB (so it has a stable
+  id for history/recents/favorites going forward) and then favorites it.
 - `POST /foods/custom` — create a reusable custom food; accepts `proteinG`/`carbsG`/`fatG`
   (grams per serving, all optional, default `0`)
 
 ### Entries — `entries.routes.ts`
 - `GET /entries?date=YYYY-MM-DD` — each entry includes `proteinG`/`carbsG`/`fatG` (scaled by
   quantity), or `null` when the entry isn't linked to a food with known macros (quick-add)
-- `POST /entries` — log a food (by `foodId`, or `customFoodName`/`customCalories`)
+- `POST /entries` — log a food by `foodId`, `customFoodName`/`customCalories`, or a
+  `providerFood` snapshot (for a not-yet-imported provider result) — the server imports
+  the provider food into the local DB on first use and reuses the same row afterward
 - `PUT /entries/:id` — full edit support: `mealType`, `quantity`, `entryDate`, and
-  correcting the food itself via `foodId` (switch to a catalog food) or
-  `customFoodName`/`customCalories` (switch to/edit a custom entry)
+  correcting the food itself via `foodId` (switch to a catalog food), `providerFood`
+  (switch to a provider-backed food), or `customFoodName`/`customCalories` (switch
+  to/edit a custom entry)
 - `DELETE /entries/:id`
 
 ### History — `history.routes.ts`
@@ -96,8 +129,10 @@ Base routes exposed by `server/` (see `server/src/routes/`). All routes except
   editable before saving
 - Dashboard with calories eaten / remaining, an animated progress ring, and a per-meal
   breakdown (breakfast, lunch, dinner, snacks)
-- Food search against a curated starter database, recent foods, favorites (star/unstar),
-  quick-add calories, and custom food creation
+- Food search against the local curated/custom database plus an external
+  provider-backed catalog (`USDA FoodData Central` by default, with pluggable provider
+  support — see [Food provider config](#food-provider-config)), recent foods, favorites
+  (star/unstar), quick-add calories, and custom food creation
 - Macro tracking: protein/carbs/fat are shown for every food (search, recent, favorites,
   logged entries, history) and summed into daily totals on the dashboard and history
   detail screens; per-user macro goals are optional alongside the required calorie goal
@@ -130,8 +165,10 @@ Base routes exposed by `server/` (see `server/src/routes/`). All routes except
 - **No forgot/reset password or email verification** — these require an email-sending
   service that isn't wired up; change password (while logged in) and account deletion
   are implemented.
-- **No external nutrition API** — food search is limited to the curated starter list plus
-  user-created custom foods, not a large branded food catalog.
+- **External provider coverage varies** — the default provider (USDA FoodData Central)
+  is free and has broad U.S. coverage, but branded/regional/Indian foods are less
+  complete than a commercial nutrition API like Edamam (also supported, but paid —
+  see [Food provider config](#food-provider-config)).
 - **No dedicated meal-detail screen** — meal management (add/edit/delete per meal) lives
   inline in the dashboard's meal cards and the history day-detail view rather than as a
   separate drill-down screen.
