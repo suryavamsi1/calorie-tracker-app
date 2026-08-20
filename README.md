@@ -66,6 +66,66 @@ alternate provider (better branded/regional coverage, but paid) — switch to it
 provider later just means implementing the `FoodProviderClient` interface in
 `server/src/services/` and registering it in `server/src/services/foodProvider.ts`.
 
+## Deploying the server
+
+The API is a stateless Express process backed by a single SQLite file (via
+`better-sqlite3`), so it needs a host with a **persistent disk/volume** — the DB file
+must survive restarts and redeploys, not live on ephemeral/container-local storage.
+[`render.yaml`](render.yaml) (Render Blueprint) and [`server/railway.json`](server/railway.json)
+are both included so either host can be set up from this repo with minimal manual config.
+
+### Option A — Render (Blueprint, recommended: simplest)
+1. Push this repo to GitHub, then in the Render dashboard: **New > Blueprint**, pick this
+   repo. Render reads [`render.yaml`](render.yaml) and creates a `bitelog-api` web service
+   (root dir `server/`) with a 1GB persistent disk mounted at `/var/data`.
+2. Render prompts for the `sync: false` env vars during setup — set `JWT_SECRET` to a
+   long random string (e.g. `openssl rand -hex 32`), and `USDA_API_KEY` (optional — falls
+   back to the public `DEMO_KEY` if left blank).
+3. Deploy. Render builds with `npm install && npm run build` and runs `npm start`, health
+   checked via `GET /health`. Your public URL is `https://<service-name>.onrender.com`.
+
+### Option B — Railway
+1. In the Railway dashboard: **New Project > Deploy from GitHub repo**, pick this repo,
+   and set the service's **Root Directory** to `server`. Railway auto-detects Node via
+   Nixpacks and reads [`server/railway.json`](server/railway.json) for the build/start
+   commands and health check.
+2. Add a **volume** to the service (Railway dashboard > service > Volumes) mounted at
+   e.g. `/data`, then set `DATABASE_PATH=/data/calorie-tracker.db` in the service's
+   variables — without this step Railway's default filesystem is ephemeral and the DB
+   is lost on every redeploy.
+3. Set the same env vars as above (`NODE_ENV=production`, `JWT_SECRET`, `USDA_API_KEY`,
+   etc.) in the service's Variables tab. Railway gives you a public
+   `https://<service-name>.up.railway.app` URL (or generate one under Settings > Networking).
+
+### Required/recommended env vars in production
+| Var | Required | Notes |
+|---|---|---|
+| `NODE_ENV=production` | yes | server refuses to boot with the default `JWT_SECRET` otherwise |
+| `JWT_SECRET` | yes | long random string — never reuse the local dev value |
+| `DATABASE_PATH` | yes | must point inside the host's persistent disk/volume mount |
+| `JWT_EXPIRES_IN` | no | defaults to `30d` |
+| `FOOD_PROVIDER` | no | defaults to `usda` |
+| `USDA_API_KEY` | no | falls back to the shared `DEMO_KEY` (30 req/hour) if unset |
+| `EDAMAM_APP_ID`/`EDAMAM_APP_KEY` | no | only used if `FOOD_PROVIDER=edamam` |
+
+### Post-deploy verification checklist
+- `GET /health` returns `{ "status": "ok" }`
+- Sign up, log in, and confirm the token persists across requests (`GET /me`)
+- `GET /foods/search?query=chicken` returns results (confirms USDA/Edamam reachability)
+- Log an entry, edit it, delete it (`POST`/`PUT`/`DELETE /entries`)
+- **Restart durability**: redeploy (or restart) the service, then confirm a previously
+  created user/entry still exists — this is the most important SQLite-on-a-host check;
+  if data disappears after a restart, the disk isn't actually mounted at `DATABASE_PATH`.
+- Point the mobile app at the deployed URL: set `EXPO_PUBLIC_API_URL` in `mobile/.env` to
+  the public HTTPS URL and reload the Expo app — the rest of the app (including the
+  offline sync queue) works unchanged against a hosted backend, since it only depends on
+  `EXPO_PUBLIC_API_URL`.
+
+### Out of scope for this deployment MVP
+No CI/CD pipeline, no EAS build/app-store distribution, no autoscaling, no migration off
+SQLite, and no monitoring/alerting stack — the goal here is only "always-on, reachable,
+durable" so local `npm run dev` is no longer required to use the API.
+
 ## API overview
 
 Base routes exposed by `server/` (see `server/src/routes/`). All routes except

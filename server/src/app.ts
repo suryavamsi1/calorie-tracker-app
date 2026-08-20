@@ -23,6 +23,11 @@ const apiLimiter = rateLimit({
 export function createApp() {
   const app = express();
 
+  // Render/Railway (and similar hosts) sit behind a single reverse proxy -
+  // without this, express-rate-limit and req.ip would see the proxy's IP
+  // for every request instead of the real client's.
+  app.set("trust proxy", 1);
+
   app.use(helmet());
   app.use(cors());
   app.use(express.json());

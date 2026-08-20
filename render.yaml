@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: bitelog-api
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 30d
+      - key: DATABASE_PATH
+        value: /var/data/calorie-tracker.db
+      - key: FOOD_PROVIDER
+        value: usda
+      - key: USDA_API_KEY
+        sync: false
+      - key: EDAMAM_APP_ID
+        sync: false
+      - key: EDAMAM_APP_KEY
+        sync: false
+    disk:
+      name: bitelog-data
+      mountPath: /var/data
+      sizeGB: 1
