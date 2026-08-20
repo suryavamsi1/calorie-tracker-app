@@ -18,6 +18,16 @@ const envSchema = z.object({
   // unset, /foods/search gracefully falls back to local-only results.
   EDAMAM_APP_ID: z.string().optional(),
   EDAMAM_APP_KEY: z.string().optional(),
+  // Optional: Resend API key (resend.com) for sending password-reset
+  // emails. Without it, /forgot-password still works end-to-end for local
+  // dev/testing - the reset code is logged to the server console instead
+  // of emailed.
+  RESEND_API_KEY: z.string().optional(),
+  // Resend's built-in test sender - works with zero domain verification,
+  // but can only deliver to the email you signed up to Resend with. Verify
+  // a real domain in Resend and set this to an address on it to send to
+  // arbitrary recipients (e.g. real users).
+  RESEND_FROM_EMAIL: z.string().email().default("onboarding@resend.dev"),
 });
 
 const parsed = envSchema.safeParse(process.env);

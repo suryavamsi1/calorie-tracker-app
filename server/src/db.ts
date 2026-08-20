@@ -98,6 +98,18 @@ export function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_weight_logs_user_date
       ON weight_logs(user_id, logged_date);
+
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      used_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash
+      ON password_reset_tokens(token_hash);
   `);
 
   migrateAddMacroColumns();

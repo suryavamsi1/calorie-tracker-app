@@ -1,10 +1,12 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import rateLimit from "express-rate-limit";
+import { createHash, randomBytes } from "crypto";
 import { z } from "zod";
 import { db } from "../db";
 import { generateId } from "../utils/id";
 import { signToken } from "../utils/jwt";
+import { sendPasswordResetEmail } from "../services/emailClient";
 
 const router = Router();
 
@@ -76,6 +78,91 @@ router.post("/login", authLimiter, (req, res) => {
 // Stateless JWT auth: nothing to invalidate server-side for MVP.
 // Client is responsible for discarding the token.
 router.post("/logout", (_req, res) => {
+  res.json({ success: true });
+});
+
+const RESET_CODE_TTL_MS = 60 * 60 * 1000; // 1 hour, single-use
+
+// 10 uppercase hex chars (40 bits of entropy) - short enough to type/paste
+// by hand (no working deep-link/hosted reset page yet), long-lived and
+// rate-limited enough to be reasonably resistant to guessing for an MVP.
+function generateResetCode(): string {
+  return randomBytes(5).toString("hex").toUpperCase();
+}
+
+function hashResetCode(code: string): string {
+  return createHash("sha256").update(code).digest("hex");
+}
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+// POST /forgot-password - always responds with the same generic message,
+// regardless of whether the email is registered, to avoid leaking account
+// existence. Issues a single-use, 1-hour code and emails it when the
+// account does exist.
+router.post("/forgot-password", authLimiter, async (req, res) => {
+  const parsed = forgotPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+  }
+
+  const genericResponse = {
+    message: "If an account exists for that email, we've sent a password reset code.",
+  };
+
+  const user = db.prepare("SELECT id FROM users WHERE email = ?").get(parsed.data.email) as
+    | { id: string }
+    | undefined;
+  if (!user) {
+    return res.json(genericResponse);
+  }
+
+  // Older unused codes for this user become invalid the moment a new one
+  // is requested - only the most recently requested code should ever work.
+  db.prepare("DELETE FROM password_reset_tokens WHERE user_id = ? AND used_at IS NULL").run(user.id);
+
+  const code = generateResetCode();
+  db.prepare(
+    `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)`
+  ).run(generateId(), user.id, hashResetCode(code), new Date(Date.now() + RESET_CODE_TTL_MS).toISOString());
+
+  await sendPasswordResetEmail(parsed.data.email, code);
+
+  res.json(genericResponse);
+});
+
+const resetPasswordSchema = z.object({
+  code: z.string().min(1),
+  newPassword: z.string().min(8),
+});
+
+// POST /reset-password - validates the code (hashed lookup, unused,
+// unexpired), updates the password, and marks the code used so it can't
+// be replayed.
+router.post("/reset-password", authLimiter, (req, res) => {
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+  }
+
+  const tokenHash = hashResetCode(parsed.data.code.trim().toUpperCase());
+  const row = db
+    .prepare(
+      `SELECT id, user_id FROM password_reset_tokens
+       WHERE token_hash = ? AND used_at IS NULL AND expires_at > datetime('now')`
+    )
+    .get(tokenHash) as { id: string; user_id: string } | undefined;
+
+  if (!row) {
+    return res.status(400).json({ error: "This reset code is invalid or has expired." });
+  }
+
+  const passwordHash = bcrypt.hashSync(parsed.data.newPassword, 10);
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, row.user_id);
+  db.prepare("UPDATE password_reset_tokens SET used_at = datetime('now') WHERE id = ?").run(row.id);
+
   res.json({ success: true });
 });
 

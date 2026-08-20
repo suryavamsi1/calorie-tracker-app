@@ -82,7 +82,7 @@ export default function LoginScreen() {
       <View>
         <View style={styles.passwordLabelRow}>
           <ThemedText type="smallBold">PASSWORD</ThemedText>
-          <Pressable onPress={comingSoon} hitSlop={8}>
+          <Pressable onPress={() => router.push('/forgot-password')} hitSlop={8}>
             <ThemedText type="small" themeColor="secondary">
               Forgot?
             </ThemedText>

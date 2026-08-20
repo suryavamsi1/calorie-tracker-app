@@ -66,6 +66,22 @@ alternate provider (better branded/regional coverage, but paid) — switch to it
 provider later just means implementing the `FoodProviderClient` interface in
 `server/src/services/` and registering it in `server/src/services/foodProvider.ts`.
 
+## Email delivery config
+
+`POST /forgot-password` sends its reset code via [Resend](https://resend.com):
+
+```
+RESEND_API_KEY=            # optional - without it, the code is just logged server-side
+RESEND_FROM_EMAIL=onboarding@resend.dev
+```
+
+Without `RESEND_API_KEY` set, nothing is actually emailed — the reset code is printed to
+the server console instead, so the full flow is still testable locally. With a real key
+but the default `onboarding@resend.dev` sender (no domain verification), Resend only
+delivers to the email address you signed up to Resend with — **not arbitrary recipients**
+like a temp-mail.org inbox. To send to real/arbitrary users, verify a domain in Resend
+and set `RESEND_FROM_EMAIL` to an address on it.
+
 ## Deploying the server
 
 The API is a stateless Express process backed by a single SQLite file (via
@@ -133,6 +149,14 @@ Base routes exposed by `server/` (see `server/src/routes/`). All routes except
 
 ### Auth — `auth.routes.ts`
 - `POST /signup`, `POST /login`, `POST /logout`
+- `POST /forgot-password` — `{ email }`, always returns the same generic message
+  regardless of whether the email is registered. When it is, emails a single-use,
+  1-hour reset code via Resend (see [Email delivery config](#email-delivery-config)) -
+  without `RESEND_API_KEY` configured, the code is logged to the server console instead
+  so the flow is fully testable locally without a real email provider.
+- `POST /reset-password` — `{ code, newPassword }`, validates the code (hashed lookup,
+  unused, unexpired) and updates the password; the code is single-use and any older
+  unused codes for that account are invalidated the moment a new one is requested.
 
 ### Profile & account — `me.routes.ts`
 - `GET /me`, `PUT /me`, `PUT /me/goal` — goal payload accepts `dailyCalorieGoal` (required)
@@ -184,7 +208,7 @@ Base routes exposed by `server/` (see `server/src/routes/`). All routes except
 ## MVP feature set implemented
 
 - Email/password auth with persisted sessions (JWT + expo-secure-store), change password,
-  and account deletion
+  forgot/reset password by emailed code, and account deletion
 - Onboarding that calculates a suggested daily calorie goal (Mifflin-St Jeor equation),
   editable before saving
 - Dashboard with calories eaten / remaining, an animated progress ring, and a per-meal
@@ -219,12 +243,14 @@ Base routes exposed by `server/` (see `server/src/routes/`). All routes except
 
 ## Known limitations / deferred scope
 
-- **Offline tolerance is read-only.** Cached data is shown when a fetch fails, but there
-  is no queued-mutation/retry-on-reconnect system yet — logging food while offline will
-  still fail.
-- **No forgot/reset password or email verification** — these require an email-sending
-  service that isn't wired up; change password (while logged in) and account deletion
-  are implemented.
+- **Offline tolerance covers reads AND entry create/edit/delete.** Dashboard/history
+  reads fall back to cached data on failure; logging/editing/deleting a food entry
+  while offline queues the change locally and syncs automatically on reconnect (see the
+  Offline Actions MVP notes) - other mutations (favorites, custom food creation,
+  profile/account changes) still require a live connection.
+- **No email verification** — signup doesn't confirm the email address is real/owned;
+  forgot/reset password is implemented (see the Auth routes above), but there's no
+  "verify your email" step.
 - **External provider coverage varies** — the default provider (USDA FoodData Central)
   is free and has broad U.S. coverage, but branded/regional/Indian foods are less
   complete than a commercial nutrition API like Edamam (also supported, but paid —
