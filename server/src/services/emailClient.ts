@@ -30,10 +30,17 @@ export async function sendPasswordResetEmail(to: string, code: string): Promise<
       }),
     });
     if (!response.ok) {
-      console.error(`Failed to send password reset email: ${response.status} ${await response.text()}`);
+      // Log the code itself here too (e.g. Resend's sandbox sender
+      // rejecting a recipient outside your own account) - otherwise a
+      // delivery failure would leave the code unrecoverable from anywhere.
+      console.error(
+        `Failed to send password reset email (falling back to logging the code): ${response.status} ${await response.text()}`
+      );
+      console.log(`[email delivery failed] Password reset code for ${to}: ${code}`);
     }
   } catch (err) {
-    console.error("Failed to send password reset email:", err);
+    console.error("Failed to send password reset email (falling back to logging the code):", err);
+    console.log(`[email delivery failed] Password reset code for ${to}: ${code}`);
   }
   // Errors are logged but not thrown - the /forgot-password route must
   // always return its generic response regardless of email delivery
