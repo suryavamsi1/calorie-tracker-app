@@ -248,11 +248,14 @@ covering the app's most fragile logic:
 
 - Pure utilities (`src/lib/__tests__/`): the offline-queue overlay (`applyQueueToEntries`),
   quantity/custom-calories macro recompute (`entryDisplay`), calorie/macro totals
-  (`entryTotals`), email/reset-password form validation (`validation`), and date helpers
-- The offline sync queue itself (`src/context/__tests__/SyncContext.test.tsx`): optimistic
-  create with a local id, coalescing an edit/delete into a still-unsynced create, marking a
-  genuine `ApiError` failed vs. reverting a network-level failure to pending, and
-  `retryFailed()`
+  (`entryTotals`), email/reset-password form validation (`validation`), the API client
+  (`api` - auth header handling, JSON parsing, `ApiError` construction), and date helpers
+- Auth and the offline sync queue (`src/context/__tests__/`): `AuthContext` (session
+  load/signup/login/logout/refresh) and `SyncContext` - optimistic create with a local id,
+  coalescing an edit/delete into a still-unsynced create, marking a genuine `ApiError`
+  failed vs. reverting a network-level failure to pending, and `retryFailed()`
+- Component rendering (`src/components/__tests__/`): `SyncBanner`'s offline/syncing/
+  failed-with-retry states and `EntryRow`'s per-entry pending/failed badges
 - Auth/recovery screen smoke tests (`src/app/__tests__/`): login validation + submit +
   error handling, and the full forgot-password/reset-password flows (validation, the
   generic "check your email" state, success/failure navigation)
