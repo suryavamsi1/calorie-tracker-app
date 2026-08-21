@@ -1,12 +1,12 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import rateLimit from "express-rate-limit";
-import { createHash, randomBytes } from "crypto";
 import { z } from "zod";
 import { db } from "../db";
 import { generateId } from "../utils/id";
 import { signToken } from "../utils/jwt";
-import { sendPasswordResetEmail } from "../services/emailClient";
+import { generateVerificationCode, hashVerificationCode, normalizeVerificationCode } from "../utils/verificationCode";
+import { sendPasswordResetEmail, sendVerificationEmail } from "../services/emailClient";
 
 const router = Router();
 
@@ -28,7 +28,7 @@ const signupSchema = z.object({
   name: z.string().min(1).optional(),
 });
 
-router.post("/signup", authLimiter, (req, res) => {
+router.post("/signup", authLimiter, async (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
@@ -46,6 +46,15 @@ router.post("/signup", authLimiter, (req, res) => {
   db.prepare(
     `INSERT INTO users (id, email, password_hash, name) VALUES (?, ?, ?, ?)`
   ).run(id, email, passwordHash, name ?? null);
+
+  // Signup succeeds and logs the user in immediately regardless of email
+  // verification - verification only marks the account as trusted, it
+  // never blocks initial access (see /verify-email/* below).
+  const verificationCode = generateVerificationCode();
+  db.prepare(
+    `INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)`
+  ).run(generateId(), id, hashVerificationCode(verificationCode), new Date(Date.now() + VERIFICATION_CODE_TTL_MS).toISOString());
+  await sendVerificationEmail(email, verificationCode);
 
   const token = signToken({ userId: id });
   res.status(201).json({ token, user: { id, email, name: name ?? null } });
@@ -82,17 +91,7 @@ router.post("/logout", (_req, res) => {
 });
 
 const RESET_CODE_TTL_MS = 60 * 60 * 1000; // 1 hour, single-use
-
-// 10 uppercase hex chars (40 bits of entropy) - short enough to type/paste
-// by hand (no working deep-link/hosted reset page yet), long-lived and
-// rate-limited enough to be reasonably resistant to guessing for an MVP.
-function generateResetCode(): string {
-  return randomBytes(5).toString("hex").toUpperCase();
-}
-
-function hashResetCode(code: string): string {
-  return createHash("sha256").update(code).digest("hex");
-}
+const VERIFICATION_CODE_TTL_MS = 60 * 60 * 1000; // 1 hour, single-use
 
 const forgotPasswordSchema = z.object({
   email: z.string().email(),
@@ -123,10 +122,10 @@ router.post("/forgot-password", authLimiter, async (req, res) => {
   // is requested - only the most recently requested code should ever work.
   db.prepare("DELETE FROM password_reset_tokens WHERE user_id = ? AND used_at IS NULL").run(user.id);
 
-  const code = generateResetCode();
+  const code = generateVerificationCode();
   db.prepare(
     `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)`
-  ).run(generateId(), user.id, hashResetCode(code), new Date(Date.now() + RESET_CODE_TTL_MS).toISOString());
+  ).run(generateId(), user.id, hashVerificationCode(code), new Date(Date.now() + RESET_CODE_TTL_MS).toISOString());
 
   await sendPasswordResetEmail(parsed.data.email, code);
 
@@ -147,7 +146,7 @@ router.post("/reset-password", authLimiter, (req, res) => {
     return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
   }
 
-  const tokenHash = hashResetCode(parsed.data.code.trim().toUpperCase());
+  const tokenHash = hashVerificationCode(normalizeVerificationCode(parsed.data.code));
   const row = db
     .prepare(
       `SELECT id, user_id FROM password_reset_tokens

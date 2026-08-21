@@ -110,6 +110,18 @@ export function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash
       ON password_reset_tokens(token_hash);
+
+    CREATE TABLE IF NOT EXISTS email_verification_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      used_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_hash
+      ON email_verification_tokens(token_hash);
   `);
 
   migrateAddMacroColumns();
@@ -135,6 +147,7 @@ function migrateAddMacroColumns() {
   addColumnIfMissing("users", "daily_protein_goal", "REAL");
   addColumnIfMissing("users", "daily_carbs_goal", "REAL");
   addColumnIfMissing("users", "daily_fat_goal", "REAL");
+  addColumnIfMissing("users", "email_verified_at", "TEXT");
 }
 
 function addColumnIfMissing(table: string, column: string, definition: string) {

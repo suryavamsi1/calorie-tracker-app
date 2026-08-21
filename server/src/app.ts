@@ -5,6 +5,7 @@ import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 import authRoutes from "./routes/auth.routes";
 import meRoutes from "./routes/me.routes";
+import emailVerificationRoutes from "./routes/emailVerification.routes";
 import foodsRoutes from "./routes/foods.routes";
 import entriesRoutes from "./routes/entries.routes";
 import historyRoutes from "./routes/history.routes";
@@ -43,6 +44,7 @@ export function createApp() {
   // every request path in the app, not just the auth routes.
   app.use("/", authRoutes);
   app.use("/me", meRoutes);
+  app.use("/verify-email", emailVerificationRoutes);
   app.use("/foods", foodsRoutes);
   app.use("/entries", entriesRoutes);
   app.use("/history", historyRoutes);

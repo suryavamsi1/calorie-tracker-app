@@ -68,7 +68,8 @@ provider later just means implementing the `FoodProviderClient` interface in
 
 ## Email delivery config
 
-`POST /forgot-password` sends its reset code via [Resend](https://resend.com):
+`POST /forgot-password` and `POST /signup` (email verification) send their codes via
+[Resend](https://resend.com):
 
 ```
 RESEND_API_KEY=            # optional - without it, the code is just logged server-side
@@ -158,6 +159,18 @@ Base routes exposed by `server/` (see `server/src/routes/`). All routes except
   unused, unexpired) and updates the password; the code is single-use and any older
   unused codes for that account are invalidated the moment a new one is requested.
 
+### Email verification — `emailVerification.routes.ts`
+- `POST /verify-email/resend` — requires auth. Issues a fresh single-use, 1-hour
+  verification code (invalidating any previous unused code) and emails it via Resend;
+  a no-op returning a generic "already verified" message if the account is already
+  verified, so it never sends a duplicate email.
+- `POST /verify-email/confirm` — `{ code }`, public (no auth — the code itself proves
+  ownership). Marks the account's email verified on a valid, unused, unexpired code;
+  otherwise returns a generic "invalid or expired" error. Signup automatically issues
+  and emails the first verification code; per policy, **login is never blocked** on an
+  unverified email — the mobile app instead shows a dismissible "Verify your email"
+  banner with a resend action until the user completes verification.
+
 ### Profile & account — `me.routes.ts`
 - `GET /me`, `PUT /me`, `PUT /me/goal` — goal payload accepts `dailyCalorieGoal` (required)
   plus optional `dailyProteinGoal`/`dailyCarbsGoal`/`dailyFatGoal` (grams, nullable)
@@ -208,7 +221,9 @@ Base routes exposed by `server/` (see `server/src/routes/`). All routes except
 ## MVP feature set implemented
 
 - Email/password auth with persisted sessions (JWT + expo-secure-store), change password,
-  forgot/reset password by emailed code, and account deletion
+  forgot/reset password by emailed code, email verification (code emailed on signup,
+  resendable, non-blocking — see [Email verification](#email-verification--emailverificationroutests)),
+  and account deletion
 - Onboarding that calculates a suggested daily calorie goal (Mifflin-St Jeor equation),
   editable before saving
 - Dashboard with calories eaten / remaining, an animated progress ring, and a per-meal
@@ -257,8 +272,9 @@ covering the app's most fragile logic:
 - Component rendering (`src/components/__tests__/`): `SyncBanner`'s offline/syncing/
   failed-with-retry states and `EntryRow`'s per-entry pending/failed badges
 - Auth/recovery screen smoke tests (`src/app/__tests__/`): login validation + submit +
-  error handling, and the full forgot-password/reset-password flows (validation, the
-  generic "check your email" state, success/failure navigation)
+  error handling, the full forgot-password/reset-password flows (validation, the
+  generic "check your email" state, success/failure navigation), and the verify-email
+  code-entry screen (validation, resend, success/failure)
 
 Note: `@testing-library/react-native` is pinned to `12.9.0` and `react-test-renderer` to
 an exact `19.1.0` (matching Expo SDK 54's React version) — newer major versions of
@@ -272,9 +288,6 @@ ships, which breaks `renderHook`/`render` in a confusing way (silently undefined
   while offline queues the change locally and syncs automatically on reconnect (see the
   Offline Actions MVP notes) - other mutations (favorites, custom food creation,
   profile/account changes) still require a live connection.
-- **No email verification** — signup doesn't confirm the email address is real/owned;
-  forgot/reset password is implemented (see the Auth routes above), but there's no
-  "verify your email" step.
 - **External provider coverage varies** — the default provider (USDA FoodData Central)
   is free and has broad U.S. coverage, but branded/regional/Indian foods are less
   complete than a commercial nutrition API like Edamam (also supported, but paid —

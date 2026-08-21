@@ -24,6 +24,7 @@ interface UserRow {
   daily_carbs_goal: number | null;
   daily_fat_goal: number | null;
   created_at: string;
+  email_verified_at: string | null;
 }
 
 function toPublicUser(row: UserRow) {
@@ -43,6 +44,7 @@ function toPublicUser(row: UserRow) {
     dailyCarbsGoal: row.daily_carbs_goal,
     dailyFatGoal: row.daily_fat_goal,
     createdAt: row.created_at,
+    emailVerified: row.email_verified_at !== null,
   };
 }
 

@@ -5,6 +5,9 @@ import { createTestApp } from "./helpers";
 const sendPasswordResetEmail = vi.fn(async () => {});
 vi.mock("../src/services/emailClient", () => ({
   sendPasswordResetEmail: (...args: unknown[]) => sendPasswordResetEmail(...args),
+  // Signup also sends a verification email now - stub it so signup calls in
+  // this file don't hit the real (network-attempting) implementation.
+  sendVerificationEmail: vi.fn(async () => {}),
 }));
 
 describe("password reset", () => {

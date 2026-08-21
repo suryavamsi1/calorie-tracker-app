@@ -154,6 +154,8 @@ export default function ProfileScreen() {
           </ThemedText>
         </View>
 
+        {!user.emailVerified ? <EmailVerificationBanner /> : null}
+
         <Card>
           <View style={styles.cardHeader}>
             <ThemedText type="h3">Health Profile</ThemedText>
@@ -334,6 +336,55 @@ export default function ProfileScreen() {
   );
 }
 
+function EmailVerificationBanner() {
+  const theme = useTheme();
+  const toast = useToast();
+  const [resending, setResending] = useState(false);
+
+  async function handleResend() {
+    setResending(true);
+    try {
+      const { message } = await api.post<{ message: string }>('/verify-email/resend');
+      toast.show(message);
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "Couldn't resend the code. Try again.", 'error');
+    } finally {
+      setResending(false);
+    }
+  }
+
+  return (
+    <Card style={[styles.verifyBanner, { backgroundColor: theme.warningSoft }]}>
+      <View style={styles.verifyBannerRow}>
+        <Icon name="mail-unread-outline" size={20} color={theme.warning} />
+        <View style={styles.flexOne}>
+          <ThemedText type="smallBold" themeColor="warning">
+            Verify your email
+          </ThemedText>
+          <ThemedText type="caption" themeColor="warning">
+            Check your inbox for a verification code.
+          </ThemedText>
+        </View>
+      </View>
+      <View style={styles.verifyBannerActions}>
+        <Button
+          title="Resend code"
+          variant="secondary"
+          size="sm"
+          onPress={handleResend}
+          loading={resending}
+        />
+        <Button
+          title="Enter code"
+          variant="secondary"
+          size="sm"
+          onPress={() => router.push('/verify-email')}
+        />
+      </View>
+    </Card>
+  );
+}
+
 function MacroBarTile({ label, valueG, color }: { label: string; valueG: number | null; color: string }) {
   const theme = useTheme();
   const pct = valueG ? Math.min(1, Math.max(0.1, valueG / 250)) : 0;
@@ -490,6 +541,18 @@ function DeleteAccountSection() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   flexOne: { flex: 1 },
+  verifyBanner: {
+    gap: Spacing.two,
+  },
+  verifyBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  verifyBannerActions: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
   content: {
     padding: Spacing.threeAndHalf,
     gap: Spacing.five,

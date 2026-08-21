@@ -19,6 +19,7 @@ export interface User {
   dailyCarbsGoal: number | null;
   dailyFatGoal: number | null;
   createdAt: string;
+  emailVerified: boolean;
 }
 
 export interface Food {
