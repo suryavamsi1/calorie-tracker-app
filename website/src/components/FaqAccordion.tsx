@@ -4,19 +4,19 @@ import { useState } from "react";
 
 const FAQS = [
   {
-    question: "How do I sync my wearable device?",
+    question: "Does BiteLog work without an internet connection?",
     answer:
-      "Navigate to the 'Devices' tab in your profile settings. Ensure Bluetooth is enabled on your smartphone, and select 'Add New Device'. Follow the on-screen prompts for Apple Health, Google Fit, or your specific hardware manufacturer.",
+      "Yes. Logging, editing, and deleting food entries all work offline — your changes are queued on your device and sync automatically as soon as you're back online, with a banner showing anything still pending or failed.",
   },
   {
-    question: "Can I export my macronutrient data?",
+    question: "Do I need to verify my email address to use the app?",
     answer:
-      "Yes. Visit the history section of the app and use the day-detail view to review your logged entries. CSV export for longer date ranges is on our roadmap.",
+      "No — verification is optional and never blocks signup or login. We'll email you a code on signup, and a banner on your profile lets you verify (or resend the code) whenever you're ready.",
   },
   {
-    question: "What happens if I forget to log a meal?",
+    question: "Can I edit or delete a food entry after logging it?",
     answer:
-      "Don't worry — you can edit or backdate entries from the history screen. Simply pick the date, add your meals, and your daily totals recalculate automatically.",
+      "Yes. Tap any logged entry to change the quantity, meal, or the food itself, or swipe to delete it. Totals for the day recalculate automatically.",
   },
   {
     question: "How is my personal health data protected?",
