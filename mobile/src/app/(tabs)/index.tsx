@@ -32,6 +32,7 @@ import { applyQueueToEntries } from '@/lib/applyQueueToEntries';
 import { getCache, setCache } from '@/lib/cache';
 import { guessMealType, todayDateString } from '@/lib/date';
 import { computeUpdatedDisplay } from '@/lib/entryDisplay';
+import { computeEntryTotals, computeRemainingCalories } from '@/lib/entryTotals';
 import type { MealEntry, MealType } from '@/types';
 
 function getMotivation(
@@ -137,15 +138,16 @@ export default function DashboardScreen() {
   }
 
   const goal = user?.dailyCalorieGoal ?? null;
-  const consumed = entries.reduce((sum, e) => sum + e.calories, 0);
-  const remaining = goal !== null ? goal - consumed : null;
+  const totals = computeEntryTotals(entries);
+  const consumed = totals.calories;
+  const remaining = computeRemainingCalories(consumed, goal);
   const progress = goal ? Math.min(consumed / goal, 1) : 0;
   const isOverGoal = remaining !== null && remaining < 0;
   const insight = getMotivation(remaining, goal);
 
-  const totalProteinG = entries.reduce((sum, e) => sum + (e.proteinG ?? 0), 0);
-  const totalCarbsG = entries.reduce((sum, e) => sum + (e.carbsG ?? 0), 0);
-  const totalFatG = entries.reduce((sum, e) => sum + (e.fatG ?? 0), 0);
+  const totalProteinG = totals.proteinG;
+  const totalCarbsG = totals.carbsG;
+  const totalFatG = totals.fatG;
 
   const entriesByMeal: Record<MealType, MealEntry[]> = useMemo(() => {
     const grouped: Record<MealType, MealEntry[]> = {

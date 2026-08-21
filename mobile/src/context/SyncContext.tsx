@@ -149,8 +149,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadQueue().then((persisted) => {
-      queueRef.current = persisted;
-      setQueue(persisted);
+      // Merge rather than overwrite - a mutation can already have been
+      // queued (e.g. an action fired immediately after mount) before this
+      // initial disk read resolves; overwriting would silently drop it.
+      const merged = [...persisted, ...queueRef.current];
+      queueRef.current = merged;
+      setQueue(merged);
       void runSync();
     });
 

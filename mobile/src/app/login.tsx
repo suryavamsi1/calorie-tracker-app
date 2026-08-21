@@ -14,6 +14,7 @@ import { useToast } from '@/context/ToastContext';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api';
+import { isValidEmail } from '@/lib/validation';
 
 export default function LoginScreen() {
   const { logIn } = useAuth();
@@ -29,7 +30,7 @@ export default function LoginScreen() {
 
   async function handleSubmit() {
     setError(null);
-    const nextEmailError = !email.trim() ? 'Enter your email.' : !/^\S+@\S+\.\S+$/.test(email.trim()) ? 'Enter a valid email address.' : null;
+    const nextEmailError = !email.trim() ? 'Enter your email.' : !isValidEmail(email) ? 'Enter a valid email address.' : null;
     const nextPasswordError = !password ? 'Enter your password.' : null;
     setEmailError(nextEmailError);
     setPasswordError(nextPasswordError);

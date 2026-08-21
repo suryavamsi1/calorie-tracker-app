@@ -10,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
+import { isValidEmail } from '@/lib/validation';
 
 export default function ForgotPasswordScreen() {
   const theme = useTheme();
@@ -20,7 +21,7 @@ export default function ForgotPasswordScreen() {
 
   async function handleSubmit() {
     const trimmed = email.trim();
-    if (!trimmed || !/^\S+@\S+\.\S+$/.test(trimmed)) {
+    if (!trimmed || !isValidEmail(trimmed)) {
       setEmailError('Enter a valid email address.');
       return;
     }

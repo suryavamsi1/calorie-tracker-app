@@ -9,6 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useToast } from '@/context/ToastContext';
 import { ApiError, api } from '@/lib/api';
+import { validateResetPasswordForm } from '@/lib/validation';
 
 export default function ResetPasswordScreen() {
   const toast = useToast();
@@ -23,13 +24,11 @@ export default function ResetPasswordScreen() {
 
   async function handleSubmit() {
     setError(null);
-    const nextCodeError = !code.trim() ? 'Enter the code from your email.' : null;
-    const nextPasswordError = newPassword.length < 8 ? 'Password must be at least 8 characters.' : null;
-    const nextConfirmError = confirmPassword !== newPassword ? 'Passwords do not match.' : null;
-    setCodeError(nextCodeError);
-    setPasswordError(nextPasswordError);
-    setConfirmError(nextConfirmError);
-    if (nextCodeError || nextPasswordError || nextConfirmError) return;
+    const errors = validateResetPasswordForm({ code, newPassword, confirmPassword });
+    setCodeError(errors.code ?? null);
+    setPasswordError(errors.password ?? null);
+    setConfirmError(errors.confirm ?? null);
+    if (errors.code || errors.password || errors.confirm) return;
 
     setLoading(true);
     try {

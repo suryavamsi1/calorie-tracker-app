@@ -26,6 +26,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
 import { applyQueueToEntries } from '@/lib/applyQueueToEntries';
 import { computeUpdatedDisplay } from '@/lib/entryDisplay';
+import { computeEntryTotals, computeRemainingCalories } from '@/lib/entryTotals';
 import { formatDisplayDate } from '@/lib/date';
 import type { HistoryDayDetail, MealEntry, MealType } from '@/types';
 
@@ -151,11 +152,12 @@ export default function HistoryDayScreen() {
     entriesByMeal[entry.mealType]?.push(entry);
   }
 
-  const totalCalories = entries.reduce((sum, e) => sum + e.calories, 0);
-  const totalProteinG = entries.reduce((sum, e) => sum + (e.proteinG ?? 0), 0);
-  const totalCarbsG = entries.reduce((sum, e) => sum + (e.carbsG ?? 0), 0);
-  const totalFatG = entries.reduce((sum, e) => sum + (e.fatG ?? 0), 0);
-  const remainingCalories = detail.calorieGoal !== null ? detail.calorieGoal - totalCalories : null;
+  const totals = computeEntryTotals(entries);
+  const totalCalories = totals.calories;
+  const totalProteinG = totals.proteinG;
+  const totalCarbsG = totals.carbsG;
+  const totalFatG = totals.fatG;
+  const remainingCalories = computeRemainingCalories(totalCalories, detail.calorieGoal);
   const overGoal = remainingCalories !== null && remainingCalories < 0;
 
   return (

@@ -241,6 +241,27 @@ Base routes exposed by `server/` (see `server/src/routes/`). All routes except
   search/favorites/recent, and full entry CRUD/editing against an isolated in-memory
   SQLite database — run with `npm test` in `server/`
 
+## Mobile testing
+
+`npm test` in `mobile/` runs the Jest suite (`jest-expo` + `@testing-library/react-native`),
+covering the app's most fragile logic:
+
+- Pure utilities (`src/lib/__tests__/`): the offline-queue overlay (`applyQueueToEntries`),
+  quantity/custom-calories macro recompute (`entryDisplay`), calorie/macro totals
+  (`entryTotals`), email/reset-password form validation (`validation`), and date helpers
+- The offline sync queue itself (`src/context/__tests__/SyncContext.test.tsx`): optimistic
+  create with a local id, coalescing an edit/delete into a still-unsynced create, marking a
+  genuine `ApiError` failed vs. reverting a network-level failure to pending, and
+  `retryFailed()`
+- Auth/recovery screen smoke tests (`src/app/__tests__/`): login validation + submit +
+  error handling, and the full forgot-password/reset-password flows (validation, the
+  generic "check your email" state, success/failure navigation)
+
+Note: `@testing-library/react-native` is pinned to `12.9.0` and `react-test-renderer` to
+an exact `19.1.0` (matching Expo SDK 54's React version) — newer major versions of
+testing-library bundle their own test renderer that requires a newer React than this SDK
+ships, which breaks `renderHook`/`render` in a confusing way (silently undefined results).
+
 ## Known limitations / deferred scope
 
 - **Offline tolerance covers reads AND entry create/edit/delete.** Dashboard/history
@@ -258,5 +279,4 @@ Base routes exposed by `server/` (see `server/src/routes/`). All routes except
 - **No dedicated meal-detail screen** — meal management (add/edit/delete per meal) lives
   inline in the dashboard's meal cards and the history day-detail view rather than as a
   separate drill-down screen.
-- **No mobile-side automated tests yet** — only the server has a test suite so far.
 
