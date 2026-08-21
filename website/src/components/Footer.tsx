@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 const FOOTER_COLUMNS = [
@@ -33,9 +34,7 @@ export function Footer() {
       <div className="max-w-[1200px] mx-auto px-grid-gutter grid grid-cols-1 md:grid-cols-4 gap-grid-gutter">
         <div className="col-span-1 md:col-span-1">
           <Link href="/" className="flex items-center gap-2 mb-6">
-            <span className="material-symbols-outlined text-primary text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-              eco
-            </span>
+            <Image src="/bitelog-icon.png" alt="BiteLog" width={24} height={24} className="h-6 w-6" />
             <span className="text-button-text text-primary">BiteLog</span>
           </Link>
           <p className="text-on-surface-variant text-body-md text-sm">Precision tracking for a healthier you.</p>

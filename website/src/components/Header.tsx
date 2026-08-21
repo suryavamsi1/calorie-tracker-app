@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -16,9 +17,7 @@ export function Header() {
     <header className="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
       <div className="h-20 max-w-[1200px] mx-auto px-grid-gutter flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-            eco
-          </span>
+          <Image src="/bitelog-icon.png" alt="BiteLog" width={32} height={32} className="h-8 w-8" priority />
           <span className="text-headline-md text-primary tracking-tight">BiteLog</span>
         </Link>
         <nav className="hidden md:flex items-center gap-8">

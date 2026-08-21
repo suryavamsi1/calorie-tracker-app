@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   },
   description:
     "Effortless calorie and macro tracking meets data-driven precision. Achieve your health goals with intelligent insights and unwavering consistency.",
+  icons: {
+    icon: "/bitelog-icon.png",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
