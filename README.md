@@ -7,6 +7,8 @@ Monorepo layout:
 
 - [`server/`](server) — Express + TypeScript REST API (JWT auth, SQLite via better-sqlite3).
 - [`mobile/`](mobile) — Expo (SDK 54) + React Native app (expo-router) that talks to the API.
+- [`website/`](website) — Standalone Next.js marketing site (home, support/contact, terms,
+  privacy) — see [`website/README.md`](website/README.md) for setup.
 
 ## Getting started
 
