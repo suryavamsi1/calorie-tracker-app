@@ -1,5 +1,7 @@
 # BiteLog Marketing Website
 
+<img src="../mobile/assets/images/bitelog-logo-full.png" alt="BiteLog" height="64" />
+
 A standalone Next.js (App Router, TypeScript, Tailwind CSS v4) marketing site for BiteLog —
 separate from the `mobile/` app and `server/` API. Built from the Figma/Stitch designs in
 [`../website design/`](../website%20design/).

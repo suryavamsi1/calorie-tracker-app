@@ -1,5 +1,7 @@
 # BiteLog
 
+<img src="mobile/assets/images/bitelog-logo-full.png" alt="BiteLog" height="64" />
+
 A cross-platform mobile calorie tracking app that helps users set daily goals, log meals,
 track calories consumed, and monitor progress over time.
 
